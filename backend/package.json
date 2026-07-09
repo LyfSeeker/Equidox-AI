@@ -1,0 +1,20 @@
+{
+  "name": "equidox-backend",
+  "version": "0.1.0",
+  "description": "Equidox AI backend — AI verification, IPFS anchoring, Stellar tx building",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "db:migrate": "node src/db/migrate.js"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^13.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "uuid": "^11.0.5"
+  }
+}

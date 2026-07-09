@@ -1,0 +1,17 @@
+# Rust's output directory
+target
+
+# Local settings
+.soroban
+.stellar
+
+# Node.js
+node_modules
+
+# Environment secrets
+.env
+backend/.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
