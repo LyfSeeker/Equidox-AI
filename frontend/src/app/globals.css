@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  
+  /* Crucible Aesthetic Colors */
+  --color-crucible-bg: #0f0f11;
+  --color-crucible-surface: #17171a;
+  --color-crucible-surface-light: #212124;
+  --color-crucible-border: #2a2a2d;
+  
+  --color-crucible-gold: #ffb000;
+  --color-crucible-gold-dim: rgba(255, 176, 0, 0.2);
+  --color-crucible-gold-glow: rgba(255, 176, 0, 0.4);
+  
+  --color-crucible-cyan: #4ade80; /* Using a vibrant green/cyan for success/trust */
+  --color-crucible-cyan-dim: rgba(74, 222, 128, 0.2);
+  
+  --color-crucible-red: #f87171;
+  --color-crucible-red-dim: rgba(248, 113, 113, 0.2);
+
+  --font-mono: var(--font-space-mono);
+  --font-sans: var(--font-inter);
+}
+
+:root {
+  --background: #0f0f11;
+  --foreground: #9ca3af;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-mono), monospace;
+  overflow-x: hidden;
+}
+
+/* Faint technical grid background */
+.bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center center;
+}
+
+/* Utility for industrial panel borders */
+.panel-border {
+  border: 1px solid var(--color-crucible-border);
+  background-color: var(--color-crucible-surface);
+  border-radius: 6px; /* Slightly rounded, industrial feel */
+}
+
+/* Gold text glow for headers */
+.text-gold-glow {
+  color: var(--color-crucible-gold);
+  text-shadow: 0 0 10px var(--color-crucible-gold-glow);
+}
+
+/* Cyan/Green text glow for active status */
+.text-cyan-glow {
+  color: var(--color-crucible-cyan);
+  text-shadow: 0 0 10px var(--color-crucible-cyan-dim);
+}
+
+/* Custom scrollbar to match aesthetic */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-crucible-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-crucible-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
