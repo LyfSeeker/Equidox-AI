@@ -8,6 +8,8 @@ import {
   i128ToScVal,
   bytesN32ToScVal,
   submitTransaction,
+  readGrant,
+  readEscrowBalance,
 } from "../services/stellar.js";
 import { indexEvent } from "../services/indexer.js";
 
@@ -37,12 +39,16 @@ router.post("/", async (req, res, next) => {
       description,
       totalBudgetStroops,
       metadataHash,
+      onChainGrantId,
+      txHash,
+      status,
     } = req.body;
 
     const result = await query(
       `INSERT INTO grants
-        (provider_address, builder_address, reviewer_address, title, description, total_budget_stroops, metadata_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (provider_address, builder_address, reviewer_address, title, description,
+         total_budget_stroops, metadata_hash, on_chain_grant_id, tx_hash, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         providerAddress,
@@ -52,10 +58,62 @@ router.post("/", async (req, res, next) => {
         description,
         totalBudgetStroops,
         metadataHash,
+        onChainGrantId ?? null,
+        txHash ?? null,
+        status || "active",
       ]
     );
 
+    if (onChainGrantId != null && txHash) {
+      await indexEvent(
+        "GrantCreated",
+        {
+          grant_id: onChainGrantId,
+          provider: providerAddress,
+          builder: builderAddress,
+          reviewer: reviewerAddress,
+          total_budget: totalBudgetStroops,
+        },
+        txHash
+      );
+    }
+
     res.status(201).json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/:id", async (req, res, next) => {
+  try {
+    const {
+      onChainGrantId,
+      txHash,
+      status,
+      escrowedStroops,
+      releasedStroops,
+    } = req.body;
+
+    const result = await query(
+      `UPDATE grants SET
+         on_chain_grant_id = COALESCE($1, on_chain_grant_id),
+         tx_hash = COALESCE($2, tx_hash),
+         status = COALESCE($3, status),
+         escrowed_stroops = COALESCE($4, escrowed_stroops),
+         released_stroops = COALESCE($5, released_stroops)
+       WHERE id = $6
+       RETURNING *`,
+      [
+        onChainGrantId ?? null,
+        txHash ?? null,
+        status ?? null,
+        escrowedStroops ?? null,
+        releasedStroops ?? null,
+        req.params.id,
+      ]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Grant not found" });
+    res.json(result.rows[0]);
   } catch (err) {
     next(err);
   }
@@ -66,15 +124,46 @@ router.get("/", async (req, res, next) => {
     const result = await query(`SELECT * FROM grants ORDER BY created_at DESC`);
     res.json(result.rows);
   } catch (err) {
-    next(err);
+    console.warn("list grants failed:", err.message);
+    res.json([]);
   }
 });
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const result = await query(`SELECT * FROM grants WHERE id = $1`, [req.params.id]);
+    const result = await query(`SELECT * FROM grants WHERE id = $1`, [
+      req.params.id,
+    ]);
     if (!result.rows[0]) return res.status(404).json({ error: "Grant not found" });
-    res.json(result.rows[0]);
+
+    const grant = result.rows[0];
+    let onChain = null;
+    let escrow = null;
+    if (grant.on_chain_grant_id != null) {
+      onChain = await readGrant(grant.on_chain_grant_id);
+      escrow = await readEscrowBalance(grant.on_chain_grant_id);
+      if (onChain) {
+        await query(
+          `UPDATE grants SET
+             escrowed_stroops = $1,
+             released_stroops = $2
+           WHERE id = $3`,
+          [
+            onChain.escrowed_balance,
+            onChain.released_total,
+            grant.id,
+          ]
+        );
+        grant.escrowed_stroops = onChain.escrowed_balance;
+        grant.released_stroops = onChain.released_total;
+      }
+    }
+
+    res.json({
+      ...grant,
+      on_chain: onChain,
+      live_escrow_stroops: escrow ?? grant.escrowed_stroops ?? 0,
+    });
   } catch (err) {
     next(err);
   }
@@ -112,7 +201,8 @@ router.post("/build/create", async (req, res, next) => {
 
 router.post("/build/deposit", async (req, res, next) => {
   try {
-    const { sourcePublicKey, providerAddress, grantId, amountStroops } = req.body;
+    const { sourcePublicKey, providerAddress, grantId, amountStroops } =
+      req.body;
     const tx = await buildContractInvoke({
       sourcePublicKey,
       contractId: process.env.GRANT_MANAGER_CONTRACT_ID,
@@ -129,11 +219,29 @@ router.post("/build/deposit", async (req, res, next) => {
   }
 });
 
+router.post("/build/cancel", async (req, res, next) => {
+  try {
+    const { sourcePublicKey, providerAddress, grantId } = req.body;
+    if (grantId == null) {
+      return res.status(400).json({ error: "grantId (on-chain) is required" });
+    }
+    const tx = await buildContractInvoke({
+      sourcePublicKey,
+      contractId: process.env.GRANT_MANAGER_CONTRACT_ID,
+      method: "cancel_grant",
+      args: [addressToScVal(providerAddress), u64ToScVal(grantId)],
+    });
+    res.json(tx);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post("/events", async (req, res, next) => {
   try {
     const { eventName, payload, txHash } = req.body;
-    await indexEvent(eventName, payload, txHash);
-    res.json({ indexed: true });
+    const result = await indexEvent(eventName, payload, txHash);
+    res.json(result);
   } catch (err) {
     next(err);
   }

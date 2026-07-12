@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env*
+!.env.example
+Dockerfile
+.dockerignore
+npm-debug.log*
+eslint.config.mjs
+AGENTS.md
+CLAUDE.md

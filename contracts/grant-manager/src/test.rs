@@ -152,6 +152,40 @@ fn test_full_milestone_lifecycle_and_payout() {
 }
 
 #[test]
+fn test_provider_can_store_verification_hash() {
+    let env = Env::default();
+    let ctx = setup(&env);
+
+    let grant_id = ctx.gm.create_grant(
+        &ctx.provider,
+        &ctx.builder,
+        &ctx.reviewer,
+        &(10 * ONE_XLM),
+        &hash_with_byte(&env, 1),
+    );
+    let milestone_id = ctx
+        .gm
+        .add_milestone(&ctx.provider, &grant_id, &(5 * ONE_XLM));
+    ctx.gm.submit_milestone(
+        &ctx.builder,
+        &grant_id,
+        &milestone_id,
+        &hash_with_byte(&env, 2),
+    );
+
+    // Provider (same wallet that created the grant) may anchor AI verification.
+    ctx.gm.store_verification_hash(
+        &ctx.provider,
+        &grant_id,
+        &milestone_id,
+        &hash_with_byte(&env, 3),
+    );
+
+    let milestone = ctx.gm.get_milestone(&grant_id, &milestone_id);
+    assert_eq!(milestone.status, MilestoneStatus::UnderReview);
+}
+
+#[test]
 fn test_unauthorized_reviewer() {
     let env = Env::default();
     let ctx = setup(&env);

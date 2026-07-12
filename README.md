@@ -50,11 +50,11 @@ create_grant → deposit_funds → add_milestone → submit_milestone
 
 | Contract | ID |
 |---|---|
-| Grant Manager | `CDCVDDIQG4ILG2G5JXLSY5EYTOTBVM5NT3NVH7IYXQTV35PEIZLRMTDQ` |
-| Builder Passport | `CCSADRTCRFJMQMXJ4TN642U3HS6R5TQ4C73UNRLSTRMTS7WAXEWVIK4B` |
+| Grant Manager | `CDCW4WXFK2BM7ND5TYSRLLWLCACZEJUKMXCFRFH6IIDDMFKLKSBNDAAQ` |
+| Builder Passport | `CCWQCRUXF2P56F6Z4RZZXPOOQITN55X3QYVXF626PBC4UXTVQRB3WWOL` |
 | Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
 
-Config saved to `%USERPROFILE%\.config\stellar\equidox\init-testnet.json`
+See `PROJECT_STATUS.md` for full MVP progress, endpoints, and demo flow.
 
 ## Backend
 
@@ -66,6 +66,34 @@ npm run dev
 ```
 
 API health check: `GET http://localhost:4000/api/health`
+
+## Docker
+
+Run frontend + backend + PostgreSQL + Keycloak:
+
+```powershell
+docker compose up --build
+```
+
+- Frontend: `http://localhost:3000` (redirects to `/login` until signed in)
+- API: `http://localhost:4000/api/health`
+- Keycloak: `http://localhost:8180` (admin `admin` / `admin`)
+- App Postgres: `localhost:5432` (user/password/db: `postgres` / `postgres` / `equidox`)
+- Keycloak Postgres: `localhost:5433` (user/password/db: `keycloak` / `keycloak` / `keycloak`) — stores users, credentials, sessions, realm config
+
+**Login:** Keycloak realm `equidox`
+- User: `demo` / `demo` at http://localhost:3000/login
+- Admin: `admin` / `admin` at http://localhost:3000/admin  
+After sign-in, connect Freighter for on-chain actions.
+
+Individual images:
+
+```powershell
+docker build -t equidox-backend ./backend
+docker build -t equidox-frontend ./frontend
+```
+
+Optional secrets (`OPENAI_API_KEY`, `GITHUB_TOKEN`, etc.) can be set in a root `.env` file used by Compose.
 
 
 ```
