@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Home,
   Terminal,
   Users,
   ShieldCheck,
@@ -21,6 +22,7 @@ export default function Sidebar() {
   const builderHref = address ? `/builder/${address}` : "/builder/me";
 
   const navLinks = [
+    { name: "HOME", href: "/", icon: Home },
     { name: "DASHBOARD", href: "/dashboard", icon: Terminal },
     { name: "GRANTS", href: "/grants", icon: Database },
     { name: "BUILDERS", href: builderHref, icon: Users },
@@ -38,15 +40,13 @@ export default function Sidebar() {
     <div className="w-56 md:w-64 h-full bg-crucible-surface border-r border-crucible-border flex flex-col z-20 shrink-0">
       <div className="h-16 flex items-center px-6 border-b border-crucible-border">
         <Link href="/" className="flex items-center gap-3">
-          <div className="w-8 h-8 flex items-center justify-center text-crucible-gold border border-crucible-gold/30 rotate-45 rounded-sm">
-            <div className="-rotate-45 font-bold text-lg">E</div>
-          </div>
-          <div className="flex flex-col justify-center">
-            <span className="font-bold text-white tracking-widest text-lg leading-none mt-1">
-              EQUIDOX
+          <img src="/logo.png" alt="Equidox Logo" className="w-8 h-8 object-contain" />
+          <div className="flex items-center ml-1">
+            <span className="font-logo text-2xl font-medium text-white tracking-tight">
+              equidox&nbsp;
             </span>
-            <span className="text-[10px] text-crucible-gold font-bold uppercase tracking-[0.2em] opacity-80 mt-1">
-              {isAdmin ? "Admin Layer" : "Trust Layer"}
+            <span className="font-logo text-2xl font-light text-crucible-gold tracking-tight">
+              ai
             </span>
           </div>
         </Link>
@@ -54,12 +54,16 @@ export default function Sidebar() {
 
       <div className="flex-1 overflow-y-auto py-6 flex flex-col gap-2 px-3">
         {navLinks.map((link) => {
-          const isActive =
-            pathname.startsWith(link.href) ||
-            (pathname === "/" && link.href === "/dashboard") ||
-            (link.name === "BUILDERS" && pathname.startsWith("/builder")) ||
-            ((link.name === "REVIEW" || link.name === "SUBMIT") &&
-              pathname.startsWith("/verification"));
+          let isActive = false;
+          if (link.name === "HOME") {
+            isActive = pathname === "/";
+          } else if (link.name === "BUILDERS") {
+            isActive = pathname.startsWith("/builder");
+          } else if (link.name === "REVIEW" || link.name === "SUBMIT") {
+            isActive = pathname.startsWith("/verification");
+          } else {
+            isActive = pathname.startsWith(link.href);
+          }
 
           return (
             <Link
