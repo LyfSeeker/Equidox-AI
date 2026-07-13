@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Space_Mono, Inter } from "next/font/google";
+import { Space_Mono, Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import AppChrome from "@/components/AppChrome";
 import AuthGate from "@/components/AuthGate";
@@ -18,6 +18,11 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "Equidox | Platform Validation",
   description: "AI-powered milestone verification and grant distribution on Stellar",
@@ -31,15 +36,15 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceMono.variable} ${inter.variable} h-full antialiased dark`}
+      className={`${spaceMono.variable} ${inter.variable} ${outfit.variable} h-full antialiased dark`}
     >
       <body className="h-full flex bg-grid-pattern text-foreground font-mono overflow-hidden">
         <AuthProvider>
           <WalletProvider>
             <ToastProvider>
-              <AuthGate>
-                <AppChrome>{children}</AppChrome>
-              </AuthGate>
+              <AppChrome>
+                <AuthGate>{children}</AuthGate>
+              </AppChrome>
             </ToastProvider>
           </WalletProvider>
         </AuthProvider>

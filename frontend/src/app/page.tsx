@@ -55,7 +55,7 @@ export default function Home() {
             className="text-5xl md:text-7xl font-bold mb-6 tracking-tight text-white uppercase"
           >
             AI-Powered<br />
-            <span className="text-crucible-cyan">Milestone Verification</span>
+            Milestone <span className="text-crucible-gold">Verification</span>
           </motion.h1>
 
           <motion.p 
@@ -68,7 +68,7 @@ export default function Home() {
           <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 w-full justify-center">
             <Link
               href="/dashboard"
-              className="px-8 py-4 bg-crucible-gold hover:bg-yellow-400 text-black font-bold tracking-wide uppercase text-sm flex items-center justify-center gap-2 transition-colors shadow-[0_0_15px_rgba(255,176,0,0.3)] hover:shadow-[0_0_25px_rgba(255,176,0,0.5)] rounded-sm"
+              className="px-8 py-4 bg-crucible-gold hover:brightness-110 text-black font-bold tracking-wide uppercase text-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(222,255,59,0.3)] hover:shadow-[0_0_25px_rgba(222,255,59,0.5)] rounded-sm"
             >
               Start Verifying <ArrowRight className="w-4 h-4" />
             </Link>

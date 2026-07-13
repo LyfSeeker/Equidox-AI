@@ -10,18 +10,19 @@
   --color-crucible-surface-light: #212124;
   --color-crucible-border: #2a2a2d;
   
-  --color-crucible-gold: #ffb000;
-  --color-crucible-gold-dim: rgba(255, 176, 0, 0.2);
-  --color-crucible-gold-glow: rgba(255, 176, 0, 0.4);
+  --color-crucible-gold: #DEFF3B;
+  --color-crucible-gold-dim: rgba(222, 255, 59, 0.2);
+  --color-crucible-gold-glow: rgba(222, 255, 59, 0.4);
   
-  --color-crucible-cyan: #4ade80; /* Using a vibrant green/cyan for success/trust */
-  --color-crucible-cyan-dim: rgba(74, 222, 128, 0.2);
+  --color-crucible-cyan: #00E5FF; /* Electric cyan for high contrast */
+  --color-crucible-cyan-dim: rgba(0, 229, 255, 0.2);
   
   --color-crucible-red: #f87171;
   --color-crucible-red-dim: rgba(248, 113, 113, 0.2);
 
   --font-mono: var(--font-space-mono);
   --font-sans: var(--font-inter);
+  --font-logo: var(--font-outfit);
 }
 
 :root {
