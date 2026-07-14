@@ -25,6 +25,8 @@ services:
     restart: unless-stopped
     ports:
       - "4000:4000"
+    env_file:
+      - ./backend/.env
     environment:
       PORT: 4000
       NODE_ENV: production
@@ -36,8 +38,6 @@ services:
       GRANT_MANAGER_CONTRACT_ID: ${GRANT_MANAGER_CONTRACT_ID:-CDCW4WXFK2BM7ND5TYSRLLWLCACZEJUKMXCFRFH6IIDDMFKLKSBNDAAQ}
       BUILDER_PASSPORT_CONTRACT_ID: ${BUILDER_PASSPORT_CONTRACT_ID:-CCWQCRUXF2P56F6Z4RZZXPOOQITN55X3QYVXF626PBC4UXTVQRB3WWOL}
       NATIVE_XLM_TOKEN_CONTRACT: ${NATIVE_XLM_TOKEN_CONTRACT:-CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       IPFS_API_URL: ${IPFS_API_URL:-}
       IPFS_GATEWAY: ${IPFS_GATEWAY:-https://ipfs.io/ipfs/}
       X402_ENABLED: ${X402_ENABLED:-false}
@@ -45,6 +45,8 @@ services:
       INDEXER_ENABLED: ${INDEXER_ENABLED:-true}
       INDEXER_POLL_MS: ${INDEXER_POLL_MS:-15000}
       FRIENDBOT_URL: ${FRIENDBOT_URL:-https://friendbot.stellar.org}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
     depends_on:
       postgres:
         condition: service_healthy

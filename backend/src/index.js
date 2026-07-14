@@ -4,6 +4,7 @@ import cors from "cors";
 import grantsRouter from "./routes/grants.js";
 import milestonesRouter from "./routes/milestones.js";
 import apiRouter from "./routes/api.js";
+import aiRouter from "./routes/ai.js";
 import { startEventIndexer } from "./services/poller.js";
 
 const app = express();
@@ -20,6 +21,7 @@ app.set("json replacer", (_key, value) =>
 app.use("/api", apiRouter);
 app.use("/api/grants", grantsRouter);
 app.use("/api/milestones", milestonesRouter);
+app.use("/api/ai", aiRouter);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

@@ -395,19 +395,17 @@ export default function GrantMatching() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 font-mono text-zinc-400">
-      <div className="panel-border p-8 mb-10 relative overflow-hidden">
+      <div className="panel-static p-8 mb-10 relative overflow-hidden">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-sm bg-crucible-gold/20 border border-crucible-gold flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-crucible-gold/20 border border-crucible-gold flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-crucible-gold" />
           </div>
-          <h1 className="text-2xl font-bold text-white uppercase tracking-widest">
-            Grants
-          </h1>
+          <h1 className="page-title !text-2xl">Grants</h1>
         </div>
-        <p className="text-zinc-500 font-sans max-w-3xl">
+        <p className="page-desc !mt-1">
           {isAdmin
-            ? "Admin: create grants, deposit escrow, set milestones, then review submissions and release payouts."
-            : "User: browse grant updates and open a grant to submit your delivery documents for review."}
+            ? "Create grants, deposit escrow, set milestones — then review submissions and release payouts."
+            : "Browse grants and open one to submit your delivery documents for review."}
         </p>
       </div>
 

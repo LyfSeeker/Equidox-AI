@@ -79,7 +79,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 initial={{ opacity: 0, y: 16, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8 }}
-                className={`pointer-events-auto panel-border bg-crucible-surface/95 backdrop-blur p-4 border ${color}`}
+                className={`pointer-events-auto panel-static bg-crucible-surface/95 backdrop-blur-xl p-4 border ${color}`}
               >
                 <div className="flex gap-3">
                   <Icon className="w-4 h-4 shrink-0 mt-0.5" />

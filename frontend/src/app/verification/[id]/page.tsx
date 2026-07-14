@@ -26,6 +26,11 @@ import {
 import LifecycleTimeline, {
   buildMilestoneTimeline,
 } from "@/components/LifecycleTimeline";
+import AiReportPanel from "@/components/AiReportPanel";
+import AiCopilot from "@/components/AiCopilot";
+import PageHeader from "@/components/ui/PageHeader";
+import { StatusBadge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function VerificationView() {
   const params = useParams();
@@ -677,6 +682,110 @@ export default function VerificationView() {
     }
   }
 
+  async function rejectMilestone() {
+    if (!isAdmin) {
+      setError("Only admins can reject milestones.");
+      return;
+    }
+    if (!selected) {
+      setError("Select a milestone");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Reject milestone “${selected.title || selected.id}”? The builder can resubmit evidence afterward.`
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const reviewer = await ensureWallet();
+      await ensureFunded(reviewer);
+
+      setTxStep("Syncing on-chain status...");
+      const synced = await api.syncMilestone({
+        milestoneId: selected.id,
+        onChainGrantId,
+        onChainMilestoneId: selected.on_chain_milestone_id ?? 0,
+      });
+      let milestoneStatus =
+        synced.chain?.status || synced.milestone.status || selected.status;
+
+      if (milestoneStatus === "submitted" || milestoneStatus === "pending") {
+        toast.info(
+          "Anchoring verification first",
+          "Confirm Freighter if prompted, then reject"
+        );
+        await anchorVerificationAnalysis();
+        const again = await api.syncMilestone({
+          milestoneId: selected.id,
+          onChainGrantId,
+          onChainMilestoneId: selected.on_chain_milestone_id ?? 0,
+        });
+        milestoneStatus =
+          again.chain?.status || again.milestone.status || "under_review";
+      }
+
+      if (milestoneStatus !== "under_review") {
+        if (milestoneStatus === "rejected") {
+          toast.success("Already rejected");
+          await load();
+          return;
+        }
+        if (milestoneStatus === "paid" || milestoneStatus === "approved") {
+          throw new Error(
+            `Cannot reject a milestone that is already ${milestoneStatus}.`
+          );
+        }
+        throw new Error(
+          `Milestone must be under_review to reject. Current status: ${milestoneStatus}`
+        );
+      }
+
+      setTxStep("Building reject_milestone...");
+      const rejectBuilt = await api.buildApproveRelease({
+        reviewerAddress: reviewer,
+        onChainGrantId,
+        onChainMilestoneId: selected.on_chain_milestone_id ?? 0,
+        step: "reject",
+      });
+      setTxStep("Confirm reject_milestone in Freighter...");
+      const rejectResult = await signAndSubmit(rejectBuilt.transaction);
+      await api.updateMilestone(selected.id, {
+        status: "rejected",
+      });
+      await api.indexEvent({
+        eventName: "MilestoneRejected",
+        payload: {
+          grant_id: onChainGrantId,
+          milestone_id: selected.on_chain_milestone_id,
+          reviewer,
+        },
+        txHash: rejectResult.hash,
+      });
+
+      setStatus(`Rejected on-chain. Tx: ${rejectResult.hash}`);
+      toast.success("Milestone rejected", "Builder can resubmit evidence");
+      await load();
+    } catch (err) {
+      let msg = err instanceof Error ? err.message : "Reject failed";
+      if (/Error\(Contract,\s*#6\)/i.test(msg)) {
+        msg =
+          "Invalid status (#6): milestone must be under_review. Run AI analyze first.";
+      } else if (/Error\(Contract,\s*#17\)/i.test(msg)) {
+        msg =
+          "Reviewer mismatch (#17): connect the Freighter wallet set as this grant's reviewer.";
+      }
+      setError(msg);
+      toast.error("Reject failed", msg);
+    } finally {
+      setBusy(false);
+      setTxStep(null);
+    }
+  }
+
   async function unlockPremium() {
     setBusy(true);
     setError(null);
@@ -767,60 +876,46 @@ export default function VerificationView() {
     [grant, selected]
   );
 
-  const completion = analysis?.completion_score ?? 0;
+  const overallScore =
+    analysis?.score ??
+    analysis?.overall_score ??
+    analysis?.trust_score ??
+    0;
+  const completion =
+    analysis?.feature_completion_score ?? analysis?.completion_score ?? 0;
   const confidence = analysis?.confidence_score ?? 0;
   const risk = analysis?.risk_score ?? 0;
 
   if (loading && !grant) {
     return (
-      <div className="max-w-6xl mx-auto py-8 space-y-4">
+      <div className="page-shell space-y-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="panel-border h-32 animate-pulse bg-white/5" />
+          <Skeleton key={i} className="h-32 w-full" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto py-8 font-mono text-zinc-400">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-        <div>
-          <Link
-            href="/dashboard"
-            className="text-zinc-500 hover:text-white transition-colors uppercase text-[10px] tracking-widest font-bold"
-          >
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-white uppercase tracking-widest flex items-center gap-3 mt-2 flex-wrap">
-            Milestone Review
-            <span className="px-2 py-1 rounded bg-black border border-crucible-border text-zinc-500 text-xs font-bold tracking-widest">
-              GRANT: {grantId}
-            </span>
-          </h1>
-          <p className="text-sm mt-2">
-            {grant?.title || "Grant"} · Builder{" "}
-            {grant?.builder_address ? (
-              <a
-                className="text-crucible-cyan hover:underline"
-                href={explorerAccountUrl(grant.builder_address) || "#"}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {shortAddress(grant.builder_address)}
-              </a>
-            ) : (
-              "—"
-            )}
-          </p>
-        </div>
-        {txStep && (
-          <div className="panel-border px-4 py-2 text-[10px] text-crucible-gold uppercase tracking-widest animate-pulse">
-            {txStep}
-          </div>
-        )}
-      </div>
+    <div className="page-shell font-mono text-zinc-400">
+      <PageHeader
+        eyebrow={`Grant #${grantId}`}
+        title="Milestone Review"
+        description={`${grant?.title || "Grant"} · ${
+          isAdmin
+            ? "Analyze evidence, then approve & release or reject."
+            : "Submit delivery evidence for review."
+        }`}
+        actions={
+          txStep ? (
+            <div className="badge badge-gold animate-pulse">{txStep}</div>
+          ) : selected ? (
+            <StatusBadge status={selected.status} />
+          ) : null
+        }
+      />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           {
             label: "Budget",
@@ -842,19 +937,28 @@ export default function VerificationView() {
             value: String(grant?.on_chain_grant_id ?? "—"),
           },
         ].map((c) => (
-          <div key={c.label} className="panel-border p-4">
+          <div key={c.label} className="panel-border p-4 card-lift">
             <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">
               {c.label}
             </p>
-            <p className="text-sm font-bold text-white">{c.value}</p>
+            <p className="text-xl font-bold text-white tabular-nums">{c.value}</p>
           </div>
         ))}
       </div>
 
+      <div className="mb-0">
+        <Link
+          href={isAdmin ? "/review" : "/submit"}
+          className="text-zinc-500 hover:text-white transition-colors uppercase text-[10px] tracking-widest font-bold"
+        >
+          ← Back to {isAdmin ? "Review" : "Submit"}
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="panel-border p-5 space-y-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-widest mb-2">
+          <div className="panel-static p-5 md:p-6 space-y-4">
+            <h3 className="section-title mb-2">
               Milestones
             </h3>
             {isAdmin && (milestones.length === 0 || showCreateForm) ? (
@@ -1214,65 +1318,27 @@ export default function VerificationView() {
                 ) < Number(selected.amount_stroops || 0)
               }
               onClick={approveAndRelease}
-              className="w-full py-3 border border-crucible-cyan text-crucible-cyan text-xs font-bold uppercase tracking-widest hover:bg-crucible-cyan/10 disabled:opacity-60"
+              className="btn btn-secondary w-full"
             >
               Approve & Release Funds
+            </button>
+            <button
+              type="button"
+              disabled={busy || !selected || !selected.evidence_json}
+              onClick={() => void rejectMilestone()}
+              className="btn btn-danger w-full"
+            >
+              Reject Milestone
             </button>
           </form>
           )}
 
           {analysis ? (
-            <div className="panel-border p-5 space-y-4 border-crucible-cyan/40">
-              <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                <FileText className="w-4 h-4 text-crucible-cyan" /> AI Verification
-                Report
-              </h3>
-              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-widest">
-                <span className="px-2 py-1 border border-crucible-border text-zinc-400">
-                  {selected?.title || "Milestone"}
-                </span>
-                <span className="px-2 py-1 border border-crucible-border text-zinc-400">
-                  Status · {selected?.status || "—"}
-                </span>
-                <span className="px-2 py-1 border border-crucible-border text-zinc-400">
-                  Source · {analysis.source || "ai"}
-                </span>
-                {analysis.generated_at && (
-                  <span className="px-2 py-1 border border-crucible-border text-zinc-400">
-                    {new Date(analysis.generated_at).toLocaleString()}
-                  </span>
-                )}
-                <span className="px-2 py-1 border border-crucible-gold/50 text-crucible-gold">
-                  {analysis.recommended_action}
-                </span>
-              </div>
-              <p className="text-sm text-zinc-300 font-sans leading-relaxed">
-                {analysis.summary}
-              </p>
-              {analysis.findings && analysis.findings.length > 0 && (
-                <ul className="space-y-2 text-[11px] text-zinc-400 list-disc pl-4">
-                  {analysis.findings.map((f, i) => (
-                    <li key={`${i}-${f.slice(0, 24)}`}>{f}</li>
-                  ))}
-                </ul>
-              )}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-                {[
-                  ["Completion", analysis.completion_score],
-                  ["Confidence", analysis.confidence_score],
-                  ["Risk", analysis.risk_score],
-                  ["Quality", analysis.code_quality_score ?? 0],
-                ].map(([label, value]) => (
-                  <div
-                    key={String(label)}
-                    className="bg-black/40 border border-crucible-border p-2"
-                  >
-                    <p className="text-[9px] uppercase text-zinc-500">{label}</p>
-                    <p className="text-sm font-bold text-white">{value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <AiReportPanel
+              analysis={analysis}
+              milestoneTitle={selected?.title}
+              milestoneStatus={selected?.status}
+            />
           ) : (
             <div className="panel-border p-5 space-y-2 border-dashed border-crucible-border">
               <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
@@ -1310,9 +1376,16 @@ export default function VerificationView() {
               AI Scores
             </h3>
             {[
-              { label: "Completion", value: completion, color: "bg-crucible-cyan" },
-              { label: "Confidence", value: confidence, color: "bg-crucible-gold" },
-              { label: "Risk", value: risk, color: "bg-crucible-red" },
+              {
+                label: "Score",
+                value: overallScore,
+                color: "bg-lime-400",
+              },
+              {
+                label: "Feature Completion",
+                value: completion,
+                color: "bg-crucible-cyan",
+              },
               {
                 label: "Code Quality",
                 value: analysis?.code_quality_score ?? 0,
@@ -1321,18 +1394,29 @@ export default function VerificationView() {
               {
                 label: "Security",
                 value: analysis?.security_score ?? 0,
-                color: "bg-crucible-cyan/70",
+                color: "bg-crucible-red/70",
               },
               {
-                label: "Docs",
+                label: "Documentation",
                 value: analysis?.documentation_score ?? 0,
                 color: "bg-crucible-gold/70",
               },
               {
-                label: "Deploy",
-                value: analysis?.deployment_score ?? 0,
+                label: "Test Coverage",
+                value: analysis?.test_coverage_score ?? 0,
+                color: "bg-crucible-cyan/70",
+              },
+              {
+                label: "Architecture",
+                value: analysis?.architecture_score ?? 0,
+                color: "bg-crucible-gold",
+              },
+              {
+                label: "Confidence",
+                value: confidence,
                 color: "bg-white/30",
               },
+              { label: "Risk", value: risk, color: "bg-crucible-red" },
             ].map((s) => (
               <div key={s.label}>
                 <div className="flex justify-between text-[10px] mb-1">
@@ -1360,6 +1444,7 @@ export default function VerificationView() {
                   <AlertTriangle className="w-3.5 h-3.5" />
                 )}
                 Recommend: {analysis.recommended_action}
+                {analysis.risk_level ? ` · Risk ${analysis.risk_level}` : ""}
               </p>
             )}
             {verificationHash && (
@@ -1368,6 +1453,8 @@ export default function VerificationView() {
               </p>
             )}
           </div>
+
+          <AiCopilot analysis={analysis} milestone={selected} />
 
           <div className="panel-border p-5 space-y-3">
             <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">

@@ -1,10 +1,15 @@
 import { API_URL } from "./config";
+import { loadTokens } from "./keycloak";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const tokens = loadTokens();
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(tokens?.accessToken
+        ? { Authorization: `Bearer ${tokens.accessToken}` }
+        : {}),
       ...(init?.headers || {}),
     },
   });
@@ -129,18 +134,43 @@ export type UnsignedTx = {
 };
 
 export type Analysis = {
+  /** Overall milestone score 0-100 (architecture primary) */
+  score?: number;
+  overall_score?: number;
   completion_score: number;
   confidence_score: number;
   risk_score: number;
+  trust_score?: number;
+  risk_level?: string;
   code_quality_score?: number;
   security_score?: number;
+  feature_completion_score?: number;
   documentation_score?: number;
+  test_coverage_score?: number;
+  architecture_score?: number;
   deployment_score?: number;
   summary: string;
+  reasoning?: string;
   recommended_action: string;
+  recommendation?: string;
   findings?: string[];
+  strengths?: string[];
+  weaknesses?: string[];
+  missing_evidence?: string[];
+  fraud_signals?: string[];
+  suggestions?: string[];
   github?: Record<string, unknown>;
+  documentation?: Record<string, unknown> | null;
   source?: string;
+  provider?: string;
+  model?: string;
+  prompt_version?: string;
+  latency_ms?: number;
+  tokens?: {
+    prompt?: number | null;
+    completion?: number | null;
+    total?: number | null;
+  };
   generated_at?: string;
 };
 
@@ -158,15 +188,39 @@ export function analysisFromMilestoneReport(
     findings: Array.isArray(json.findings)
       ? (json.findings as string[])
       : undefined,
+    score:
+      typeof json.score === "number"
+        ? json.score
+        : typeof json.overall_score === "number"
+          ? json.overall_score
+          : undefined,
+    overall_score:
+      typeof json.overall_score === "number"
+        ? json.overall_score
+        : typeof json.score === "number"
+          ? json.score
+          : undefined,
     code_quality_score:
       typeof json.code_quality_score === "number"
         ? json.code_quality_score
         : undefined,
     security_score:
       typeof json.security_score === "number" ? json.security_score : undefined,
+    feature_completion_score:
+      typeof json.feature_completion_score === "number"
+        ? json.feature_completion_score
+        : Number(report.completion_score),
     documentation_score:
       typeof json.documentation_score === "number"
         ? json.documentation_score
+        : undefined,
+    test_coverage_score:
+      typeof json.test_coverage_score === "number"
+        ? json.test_coverage_score
+        : undefined,
+    architecture_score:
+      typeof json.architecture_score === "number"
+        ? json.architecture_score
         : undefined,
     deployment_score:
       typeof json.deployment_score === "number"
@@ -326,6 +380,34 @@ export const api = {
       premium?: boolean;
       x402?: unknown;
     }>("/api/milestones/premium", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  aiAnalyze: (body: Record<string, unknown>) =>
+    request<{
+      analysis: Analysis;
+      hash: string;
+      trustScore?: number;
+      recommendation?: string;
+      model?: string;
+      provider?: string;
+      latencyMs?: number;
+      tokens?: Analysis["tokens"];
+      jobId?: string;
+      status?: string;
+    }>("/api/ai/analyze", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  aiChat: (body: Record<string, unknown>) =>
+    request<{
+      reply: string;
+      model?: string;
+      provider?: string;
+      tokens?: Analysis["tokens"];
+    }>("/api/ai/chat", {
       method: "POST",
       body: JSON.stringify(body),
     }),

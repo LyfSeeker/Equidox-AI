@@ -66,32 +66,28 @@ export default function LoginPanel({
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <label className="block space-y-2">
-            <span className="text-[10px] uppercase tracking-widest text-zinc-500">
-              Username
-            </span>
+          <label className="field">
+            <span className="field-label">Username</span>
             <input
               type="text"
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full h-11 px-3 bg-black/40 border border-crucible-border text-white text-sm focus:outline-none focus:border-crucible-gold/60"
+              className="field-input"
               placeholder={usernamePlaceholder}
             />
           </label>
 
-          <label className="block space-y-2">
-            <span className="text-[10px] uppercase tracking-widest text-zinc-500">
-              Password
-            </span>
+          <label className="field">
+            <span className="field-label">Password</span>
             <input
               type="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full h-11 px-3 bg-black/40 border border-crucible-border text-white text-sm focus:outline-none focus:border-crucible-gold/60"
+              className="field-input"
               placeholder="••••"
             />
           </label>
@@ -105,7 +101,7 @@ export default function LoginPanel({
           <button
             type="submit"
             disabled={submitting}
-            className="w-full h-12 mt-2 bg-crucible-gold hover:bg-yellow-400 disabled:opacity-60 text-black font-bold tracking-wide uppercase text-sm flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,176,0,0.3)]"
+            className="btn btn-primary w-full h-12"
           >
             <Lock className="w-4 h-4" />
             {submitting ? "Signing in…" : "Sign in"}

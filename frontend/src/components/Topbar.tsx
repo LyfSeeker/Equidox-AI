@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { User, Settings, Wallet, LogOut, Droplets } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  User,
+  Wallet,
+  LogOut,
+  Droplets,
+  Bell,
+  ChevronDown,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useWallet } from "@/context/WalletContext";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -9,12 +18,16 @@ import { api } from "@/lib/api";
 import { shortAddress } from "@/lib/config";
 
 export default function Topbar() {
+  const router = useRouter();
   const { address, connecting, connect, disconnect, freighterAvailable, error } =
     useWallet();
   const { user, logout, isAdmin } = useAuth();
   const toast = useToast();
   const [funded, setFunded] = useState<boolean | null>(null);
   const [funding, setFunding] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const displayName =
     user?.preferred_username || user?.email || user?.name || "User";
@@ -38,6 +51,24 @@ export default function Topbar() {
     };
   }, [address]);
 
+  useEffect(() => {
+    if (!profileOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setProfileOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [profileOpen]);
+
   async function fundWallet() {
     if (!address) return;
     setFunding(true);
@@ -55,27 +86,56 @@ export default function Topbar() {
     }
   }
 
-  async function signOut() {
+  function onDisconnectWallet(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       disconnect();
-    } catch {
-      // wallet may already be disconnected
+      setProfileOpen(false);
+      toast.success("Wallet disconnected", "Connect Freighter again to continue");
+    } catch (err) {
+      toast.error(
+        "Disconnect failed",
+        err instanceof Error ? err.message : "Could not disconnect"
+      );
     }
-    await logout();
-    toast.success("Signed out");
+  }
+
+  async function onSignOut(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    setProfileOpen(false);
+    try {
+      try {
+        disconnect();
+      } catch {
+        // wallet may already be cleared
+      }
+      await logout();
+      toast.success("Signed out");
+      router.replace("/login");
+    } catch (err) {
+      toast.error(
+        "Sign out failed",
+        err instanceof Error ? err.message : "Could not sign out"
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-crucible-border bg-crucible-bg/80 backdrop-blur-md z-10 shrink-0 gap-3">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/5">
-          <div className="w-1.5 h-1.5 rounded-full bg-crucible-cyan"></div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-            Stellar Testnet
-          </span>
+    <header className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-crucible-border bg-crucible-bg/85 backdrop-blur-xl z-10 shrink-0 gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="badge badge-cyan shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-crucible-cyan animate-pulse" />
+          Stellar Testnet
         </div>
+
         {!freighterAvailable && (
-          <span className="text-[10px] text-crucible-gold uppercase tracking-widest hidden md:inline">
+          <span className="text-[10px] text-crucible-gold uppercase tracking-widest hidden lg:inline">
             Freighter not detected
           </span>
         )}
@@ -84,72 +144,39 @@ export default function Topbar() {
             type="button"
             onClick={fundWallet}
             disabled={funding}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 border border-crucible-gold/50 text-crucible-gold text-[10px] font-bold uppercase tracking-widest hover:bg-crucible-gold/10 disabled:opacity-60"
+            className="btn btn-ghost btn-sm hidden sm:inline-flex border-crucible-gold/40 text-crucible-gold"
           >
             <Droplets className="w-3 h-3" />
-            {funding ? "Funding..." : "Fund Testnet Wallet"}
+            {funding ? "Funding…" : "Fund Wallet"}
           </button>
         )}
         {error && (
-          <span className="text-[10px] text-crucible-red uppercase tracking-widest hidden lg:inline max-w-xs truncate">
+          <span className="text-[10px] text-crucible-red uppercase tracking-widest hidden xl:inline max-w-xs truncate">
             {error}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-2 md:gap-4 shrink-0">
-        <div
-          className="hidden sm:flex items-center gap-2 h-10 px-3 rounded-md border border-crucible-border bg-black/40 text-zinc-300 text-xs uppercase tracking-wide"
-          title={displayName}
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon relative"
+          aria-label="Notifications"
+          title="Notifications"
+          onClick={() => toast.info("Notifications", "You’re caught up")}
         >
-          <User className="w-3.5 h-3.5 text-crucible-gold" />
-          <span className="max-w-[120px] truncate">{displayName}</span>
-          <span
-            className={`text-[9px] font-bold tracking-widest ${
-              isAdmin ? "text-crucible-gold" : "text-crucible-cyan"
-            }`}
-          >
-            {isAdmin ? "ADMIN" : "USER"}
-          </span>
-        </div>
-
-        <button className="w-10 h-10 hidden md:flex items-center justify-center rounded-full border border-transparent hover:bg-white/5 text-zinc-400 hover:text-white transition-colors">
-          <Settings className="w-4 h-4" />
+          <Bell className="w-4 h-4" />
+          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-crucible-gold" />
         </button>
 
         {address ? (
-          <div className="flex items-center gap-2">
-            {funded === false && (
-              <button
-                type="button"
-                onClick={fundWallet}
-                disabled={funding}
-                className="sm:hidden h-10 px-3 rounded-md border border-crucible-gold/50 text-crucible-gold text-[10px] font-bold uppercase"
-              >
-                Fund
-              </button>
-            )}
-            <div
-              className="h-10 px-3 md:px-4 rounded-md border border-crucible-border bg-black/40 text-crucible-cyan font-bold tracking-wide uppercase text-xs flex items-center gap-2"
-              title={address}
-            >
-              <Wallet className="w-3.5 h-3.5" />
-              {shortAddress(address)}
-              {funded && (
-                <span className="hidden md:inline text-[9px] text-crucible-cyan/70">
-                  FUNDED
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={disconnect}
-              className="h-10 w-10 rounded-md border border-crucible-border hover:bg-white/5 text-zinc-400 hover:text-white flex items-center justify-center"
-              title="Disconnect wallet"
-              aria-label="Disconnect wallet"
-            >
-              <Wallet className="w-4 h-4 opacity-60" />
-            </button>
+          <div
+            className="h-10 px-3 rounded-lg border border-crucible-border bg-black/40 text-crucible-cyan font-bold tracking-wide uppercase text-xs flex items-center gap-2"
+            title={address}
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{shortAddress(address)}</span>
+            {funded && <span className="badge badge-cyan !py-0.5">Funded</span>}
           </div>
         ) : (
           <button
@@ -160,23 +187,74 @@ export default function Topbar() {
                 .catch(() => undefined)
             }
             disabled={connecting}
-            className="h-10 px-4 md:px-6 rounded-md bg-crucible-gold hover:bg-yellow-400 disabled:opacity-60 text-black font-bold tracking-wide uppercase text-sm flex items-center gap-2 transition-colors shadow-[0_0_15px_rgba(255,176,0,0.3)]"
+            className="btn btn-primary btn-sm"
           >
             <Wallet className="w-4 h-4" />
-            {connecting ? "Confirm..." : "Connect Wallet"}
+            {connecting ? "Confirm…" : "Connect"}
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="h-10 w-10 rounded-md border border-crucible-border hover:bg-white/5 text-zinc-400 hover:text-white flex items-center justify-center"
-          title="Sign out"
-          aria-label="Sign out"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setProfileOpen((v) => !v)}
+            className="h-10 px-3 rounded-lg border border-crucible-border bg-black/40 text-zinc-300 text-xs uppercase tracking-wide flex items-center gap-2 hover:border-crucible-gold/30 transition-colors"
+            aria-expanded={profileOpen}
+            aria-haspopup="menu"
+          >
+            <User className="w-3.5 h-3.5 text-crucible-gold" />
+            <span className="hidden sm:inline max-w-[100px] truncate">
+              {displayName}
+            </span>
+            <span
+              className={`text-[9px] font-bold tracking-widest ${
+                isAdmin ? "text-crucible-gold" : "text-crucible-cyan"
+              }`}
+            >
+              {isAdmin ? "ADMIN" : "USER"}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+          </button>
+
+          <AnimatePresence>
+            {profileOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                transition={{ duration: 0.15 }}
+                role="menu"
+                className="absolute right-0 mt-2 w-56 panel-static p-2 z-[60] shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
+              >
+                <p className="px-3 py-2 text-[10px] text-zinc-500 uppercase tracking-widest truncate">
+                  {displayName}
+                </p>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!address || busy}
+                  onClick={onDisconnectWallet}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Wallet className="w-3.5 h-3.5" /> Disconnect wallet
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={busy}
+                  onClick={(e) => void onSignOut(e)}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs text-crucible-red hover:bg-crucible-red/10 disabled:opacity-40"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  {busy ? "Signing out…" : "Sign out"}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-    </div>
+    </header>
   );
 }

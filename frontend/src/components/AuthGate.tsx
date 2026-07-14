@@ -14,11 +14,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const isPublicAuth =
     pathname === "/login" || pathname === "/admin" || pathname === "/";
 
-  // Handle redirecting unauthenticated users to the login page
   useEffect(() => {
     if (loading || isPublicAuth || isAuthenticated) return;
-    
-    // They are not authenticated and trying to access a protected route
+
     const next = `${pathname}${window.location.search}`;
     router.replace(`/login?next=${encodeURIComponent(next)}`);
   }, [loading, isPublicAuth, isAuthenticated, pathname, router]);
@@ -33,7 +31,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If not authenticated, we're in the process of redirecting to /login
   if (!isAuthenticated) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-transparent text-[10px] uppercase tracking-widest text-zinc-500">
@@ -42,7 +39,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // They are authenticated. Check wallet connection.
   if (!address) {
     return (
       <div className="h-full w-full flex flex-col gap-4 items-center justify-center bg-transparent text-zinc-500">
