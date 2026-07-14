@@ -12,9 +12,15 @@ const router = Router();
 
 router.get("/health", async (_req, res) => {
   let ai = {
+    gemini: Boolean(process.env.GEMINI_API_KEY),
     deepseek: Boolean(process.env.DEEPSEEK_API_KEY),
     openai: Boolean(process.env.OPENAI_API_KEY),
-    model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+    kimi: Boolean(process.env.AI_API_KEY),
+    model:
+      process.env.AI_MODEL ||
+      process.env.GEMINI_MODEL ||
+      process.env.DEEPSEEK_MODEL ||
+      "—",
     providers: 0,
   };
   try {
@@ -23,8 +29,10 @@ router.get("/health", async (_req, res) => {
     const primary =
       cfg.providers.find((p) => p.id === cfg.primaryProviderId) || ready[0];
     ai = {
+      gemini: ready.some((p) => p.id === "gemini"),
       deepseek: ready.some((p) => p.id === "deepseek"),
       openai: ready.some((p) => p.id === "openai"),
+      kimi: ready.some((p) => p.id === "kimi"),
       model: primary?.model || "—",
       primary: primary?.id || null,
       providers: ready.length,

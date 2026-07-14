@@ -5,7 +5,7 @@ import {
   analyzeMilestone as providerAnalyze,
   chatAboutReport,
   PROMPT_VERSION,
-} from "./deepseek.js";
+} from "./llm.js";
 
 /**
  * Full evidence pack + AI analysis via configured providers.
@@ -32,12 +32,23 @@ export async function analyzeMilestone({
     milestone ||
     {
       title: milestoneTitle,
+      acceptanceCriteria: milestoneDescription || null,
       description: milestoneDescription || null,
       amount: milestoneAmount || null,
       repoUrl,
       demoUrl: demoUrl || null,
       docsUrl: docsUrl || null,
     };
+
+  // Always surface acceptance criteria explicitly for the model
+  if (
+    milestonePayload &&
+    typeof milestonePayload === "object" &&
+    !milestonePayload.acceptanceCriteria
+  ) {
+    milestonePayload.acceptanceCriteria =
+      milestonePayload.description || milestoneDescription || "";
+  }
 
   const input = {
     milestone: milestonePayload,

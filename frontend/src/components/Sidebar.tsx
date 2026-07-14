@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
   Terminal,
-  Users,
   ShieldCheck,
   Database,
   HelpCircle,
@@ -15,9 +14,19 @@ import {
   PanelLeftClose,
   PanelLeft,
   Upload,
+  type LucideIcon,
 } from "lucide-react";
 import { useWallet } from "@/context/WalletContext";
 import { useAuth } from "@/context/AuthContext";
+import BrandIcon from "@/components/BrandIcon";
+
+type NavLink = {
+  name: string;
+  href: string;
+  hint: string;
+  icon?: LucideIcon;
+  brand?: "builder";
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -27,11 +36,16 @@ export default function Sidebar() {
 
   const builderHref = address ? `/builder/${address}` : "/builder/me";
 
-  const navLinks = [
+  const navLinks: NavLink[] = [
     { name: "HOME", href: "/", icon: Home, hint: "Landing" },
     { name: "DASHBOARD", href: "/dashboard", icon: Terminal, hint: "Overview" },
     { name: "GRANTS", href: "/grants", icon: Database, hint: "Create & manage grants" },
-    { name: "BUILDERS", href: builderHref, icon: Users, hint: "Builder passport" },
+    {
+      name: "BUILDERS",
+      href: builderHref,
+      brand: "builder",
+      hint: "Builder passport",
+    },
     isAdmin
       ? {
           name: "REVIEW",
@@ -127,12 +141,24 @@ export default function Sidebar() {
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               )}
-              <link.icon
-                className={`w-4 h-4 shrink-0 ${
-                  isActive ? "text-crucible-gold" : "text-zinc-600 group-hover:text-zinc-400"
-                }`}
-              />
-              {!collapsed && <span>{link.name}</span>}
+              {link.brand ? (
+                <BrandIcon
+                  name={link.brand}
+                  className={`w-4 h-4 shrink-0 ${
+                    isActive
+                      ? "text-crucible-gold"
+                      : "text-zinc-600 group-hover:text-zinc-400"
+                  }`}
+                />
+              ) : link.icon ? (
+                <link.icon
+                  className={`w-4 h-4 shrink-0 ${
+                    isActive
+                      ? "text-crucible-gold"
+                      : "text-zinc-600 group-hover:text-zinc-400"
+                  }`}
+                />
+              ) : null}              {!collapsed && <span>{link.name}</span>}
             </Link>
           );
         })}

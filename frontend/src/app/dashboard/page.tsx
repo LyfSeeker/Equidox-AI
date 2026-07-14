@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [selectedGrantId, setSelectedGrantId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,13 +67,6 @@ export default function Dashboard() {
       setGrants(g);
       setEvents(e);
       setHealth(h);
-
-      if (g[0]) {
-        const ms = await api.listMilestones(g[0].id).catch(() => []);
-        setMilestones(ms);
-      } else {
-        setMilestones([]);
-      }
 
       if (isAdmin) {
         const pending = await api.listSubmittedMilestones().catch(() => []);
@@ -98,6 +92,46 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [load]);
 
+  // Keep a valid selection when the grant list changes
+  useEffect(() => {
+    if (grants.length === 0) {
+      setSelectedGrantId(null);
+      return;
+    }
+    const stillValid =
+      selectedGrantId != null && grants.some((g) => g.id === selectedGrantId);
+    if (!stillValid) {
+      const preferred =
+        grants.find((g) => ["active", "funded"].includes(g.status)) || grants[0];
+      setSelectedGrantId(preferred.id);
+    }
+  }, [grants, selectedGrantId]);
+
+  // Load lifecycle data for the selected grant
+  useEffect(() => {
+    if (selectedGrantId == null) {
+      setMilestones([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .listMilestones(selectedGrantId)
+      .then((ms) => {
+        if (!cancelled) setMilestones(ms);
+      })
+      .catch(() => {
+        if (!cancelled) setMilestones([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGrantId, loading]);
+
+  const selectedGrant = useMemo(
+    () => grants.find((g) => g.id === selectedGrantId) || null,
+    [grants, selectedGrantId]
+  );
+
   const activeGrants = grants.filter((g) =>
     ["active", "funded"].includes(g.status)
   ).length;
@@ -117,18 +151,23 @@ export default function Dashboard() {
     new Map(grants.map((g) => [g.builder_address, g])).values()
   ).slice(0, 5);
 
-  const featured =
-    grants.find((g) => ["active", "funded"].includes(g.status)) || grants[0];
   const timeline = useMemo(
     () =>
       buildGrantTimeline({
-        hasGrant: Boolean(featured),
-        escrowed: Number(featured?.escrowed_stroops || 0),
+        hasGrant: Boolean(selectedGrant),
+        escrowed: Number(selectedGrant?.escrowed_stroops || 0),
         milestoneCount: milestones.length,
-        statuses: [featured?.status || "", ...milestones.map((m) => m.status)],
+        statuses: [
+          selectedGrant?.status || "",
+          ...milestones.map((m) => m.status),
+        ],
       }),
-    [featured, milestones]
+    [selectedGrant, milestones]
   );
+
+  function selectGrant(id: number) {
+    setSelectedGrantId(id);
+  }
 
   async function cancelGrant(grant: Grant) {
     if (!isAdmin) {
@@ -396,16 +435,30 @@ export default function Dashboard() {
                     grant.on_chain_grant_id != null;
                   const isProvider =
                     !!address && address === grant.provider_address;
+                  const selected = grant.id === selectedGrantId;
 
                   return (
-                    <div key={grant.id} className="panel-border p-4 space-y-3">
+                    <div
+                      key={grant.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => selectGrant(grant.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectGrant(grant.id);
+                        }
+                      }}
+                      className={`panel-border p-4 space-y-3 cursor-pointer transition-colors ${
+                        selected
+                          ? "border-crucible-gold/70 bg-crucible-gold/[0.04]"
+                          : "hover:border-zinc-600"
+                      }`}
+                    >
                       <div className="flex justify-between gap-4">
-                        <Link
-                          href={`/verification/${grant.id}`}
-                          className="text-white font-bold uppercase tracking-wider text-sm hover:text-crucible-gold transition-colors"
-                        >
+                        <span className="text-white font-bold uppercase tracking-wider text-sm">
                           {grant.title || `Grant #${grant.id}`}
-                        </Link>
+                        </span>
                         <StatusBadge status={grant.status} />
                       </div>
                       <p className="text-[10px] text-zinc-500">
@@ -429,6 +482,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2">
                           <Link
                             href={`/verification/${grant.id}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="btn btn-ghost btn-sm"
                           >
                             {isAdmin ? "Review" : "Submit Docs"}
@@ -437,7 +491,10 @@ export default function Dashboard() {
                             <button
                               type="button"
                               disabled={cancellingId === grant.id}
-                              onClick={() => cancelGrant(grant)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                cancelGrant(grant);
+                              }}
                               title={
                                 isProvider
                                   ? "Cancel grant and refund escrow"
@@ -467,7 +524,11 @@ export default function Dashboard() {
           <LifecycleTimeline
             steps={timeline}
             title="Activity Timeline"
-            subtitle={featured?.title || "Featured grant"}
+            subtitle={
+              selectedGrant
+                ? selectedGrant.title || `Grant #${selectedGrant.id}`
+                : "Select a grant"
+            }
           />
           <div className="panel-static p-5">
             <div className="flex justify-between items-start mb-4">

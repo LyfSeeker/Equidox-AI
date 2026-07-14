@@ -17,8 +17,13 @@ const router = Router();
 
 router.post("/metadata", async (req, res, next) => {
   try {
-    const { title, description, terms } = req.body;
-    const uploaded = await uploadJsonToIpfs({ title, description, terms });
+    const { title, description, terms, milestones } = req.body;
+    const uploaded = await uploadJsonToIpfs({
+      title,
+      description,
+      terms,
+      milestones: Array.isArray(milestones) ? milestones : [],
+    });
     res.json({
       metadataHash: uploaded.hashBytes,
       ipfsCid: uploaded.ipfsCid,

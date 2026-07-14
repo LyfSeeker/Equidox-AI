@@ -16,9 +16,9 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0 z-0">
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative z-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={pathname}

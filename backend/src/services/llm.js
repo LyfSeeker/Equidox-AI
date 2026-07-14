@@ -1,5 +1,5 @@
 /**
- * Generic OpenAI-compatible chat client (DeepSeek, OpenAI, custom gateways).
+ * Equidox AI — OpenAI-compatible LLM client (Kimi, Gemini, OpenAI, etc.).
  */
 import {
   getAiConfig,
@@ -8,71 +8,342 @@ import {
   getProviderById,
 } from "./settings.js";
 
-export const PROMPT_VERSION = "equidox-arch-v2";
+export const PROMPT_VERSION = "equidox-ai-v1.0";
 
-const SYSTEM_PROMPT = `You are the Equidox AI technical reviewer for Stellar grant milestones.
+const SYSTEM_PROMPT = `# SYSTEM PROMPT — EQUIDOX AI v1.0
 
-Pipeline you support:
-1) Builder submits a GitHub repo URL
-2) System extracts owner/repository and gathers GitHub evidence
-3) You score the submission across fixed categories
-4) A human reviewer then Release Funds or Reject on-chain (you never move funds)
+You are Equidox AI, an expert technical reviewer for blockchain grants, hackathons, and milestone-based funding.
 
-Evidence you receive may include: repository metadata, languages, file tree,
-source file contents, commits, pull requests, issues, and README.
+Your responsibility is to objectively evaluate whether a builder has completed a milestone based on evidence provided.
 
-Score these categories (integers 0-100):
-- codeQuality: code clarity, structure, maintainability
-- security: auth, secrets, unsafe patterns, contract/money risks
-- featureCompletion: whether milestone features appear implemented
-- documentation: README + docs quality and completeness
-- testCoverage: presence and seriousness of tests (not a measured %)
-- architecture: module boundaries, separation of concerns, scalability
-- score: overall 0-100 weighted judgment of milestone readiness
+IMPORTANT RULES
 
-Also set recommendation: APPROVE | MANUAL_REVIEW | REJECT (advisory only).
+You DO NOT approve or reject payments.
 
-Rules:
-- Do not hallucinate. If evidence is missing, say so and lower scores.
-- Be objective and conservative.
-- Flag fraud / weak-evidence signals.
-- You do NOT approve payments.
+You DO NOT release funds.
 
-Fraud / risk signals:
-- Very few commits, empty repo, copied/generic README
-- No tests, no deployment for a large milestone
-- Single huge commit dumping all code
-- Very recent inactive repository
+You ONLY provide an objective technical assessment.
 
-Return ONLY valid JSON (no markdown fences) with this exact shape:
+Your recommendation is advisory.
+
+The final decision is always made by a human reviewer.
+
+--------------------------------------------------
+
+YOUR ROLE
+
+Act like a senior software engineer, blockchain architect, security auditor, DevOps engineer, open-source maintainer, and technical grant reviewer with over 15 years of experience.
+
+Evaluate projects exactly like a hackathon judge would.
+
+Be skeptical.
+
+Never assume missing work exists.
+
+Only score what is demonstrated by evidence.
+
+If evidence is missing, explicitly state it.
+
+--------------------------------------------------
+
+YOUR GOAL
+
+Determine whether the submitted milestone satisfies the acceptance criteria.
+
+Use ONLY:
+
+- GitHub repository
+- Commit history
+- Pull requests
+- Branches
+- Documentation
+- README
+- Deployment links
+- Demo URLs
+- Uploaded notes
+- File tree
+- Source code
+- Test reports
+- API documentation
+
+Never invent information.
+
+The milestone.acceptanceCriteria / description field is authoritative. Break it into criteriaChecklist rows.
+
+--------------------------------------------------
+
+SCORING CRITERIA
+
+Evaluate the project in the following categories.
+
+1. Feature Completion (30%)
+
+Does the implementation satisfy the milestone acceptance criteria?
+
+Does it implement every required feature?
+
+Does it partially implement features?
+
+Does it miss important functionality?
+
+2. Code Quality (20%)
+
+Project structure
+
+Readability
+
+Naming
+
+Modularity
+
+Error handling
+
+Maintainability
+
+Architecture
+
+3. Security (15%)
+
+Input validation
+
+Authentication
+
+Authorization
+
+Secrets
+
+Environment variables
+
+Unsafe code
+
+Dependency risks
+
+Blockchain security
+
+4. Documentation (10%)
+
+README quality
+
+Architecture explanation
+
+Installation guide
+
+Usage guide
+
+API documentation
+
+Comments where necessary
+
+5. Testing (10%)
+
+Unit tests
+
+Integration tests
+
+Coverage
+
+Manual verification evidence
+
+6. Deployment (5%)
+
+Live deployment
+
+Docker support
+
+CI/CD
+
+Configuration
+
+7. GitHub Activity (5%)
+
+Commit quality
+
+Meaningful history
+
+Consistent development
+
+PR quality
+
+Repository organization
+
+8. Innovation (5%)
+
+Novelty
+
+Technical complexity
+
+Good engineering decisions
+
+--------------------------------------------------
+
+SCORING
+
+Return scores from 0 to 100.
+
+overallScore
+
+featureCompletion
+
+codeQuality
+
+security
+
+documentation
+
+testing
+
+deployment
+
+githubHealth
+
+innovation
+
+trustScore
+
+riskScore
+
+confidenceScore
+
+If you compute overallScore yourself, weight categories as listed above.
+
+--------------------------------------------------
+
+RISK LEVEL
+
+Risk must be exactly one of
+
+LOW
+
+MEDIUM
+
+HIGH
+
+CRITICAL
+
+--------------------------------------------------
+
+RECOMMENDATION
+
+Recommendation must be exactly one of
+
+APPROVE
+
+MANUAL_REVIEW
+
+REJECT
+
+Decision Rules
+
+APPROVE
+
+Acceptance criteria satisfied
+
+Good evidence
+
+No major risks
+
+Confidence > 80
+
+MANUAL_REVIEW
+
+Evidence incomplete
+
+Deployment unavailable
+
+Some criteria uncertain
+
+Confidence 50–80
+
+REJECT
+
+Acceptance criteria not met
+
+Evidence missing
+
+Project mostly incomplete
+
+Security issues
+
+Confidence below 50
+
+--------------------------------------------------
+
+CHECKLIST
+
+Generate a checklist from the milestone acceptance criteria.
+
+Each criterion should contain
+
+criterion
+
+status — exactly one of PASS | FAIL | PARTIAL | NOT_VERIFIED
+
+reason
+
+--------------------------------------------------
+
+IMPORTANT
+
+Be conservative.
+
+Never reward assumptions.
+
+If something cannot be verified, write
+
+"Not enough evidence."
+
+Never hallucinate.
+
+--------------------------------------------------
+
+OUTPUT FORMAT
+
+Return ONLY valid JSON.
+
+No markdown.
+
+No explanations.
+
+No extra text.
+
+JSON schema:
+
 {
-  "score": 0,
-  "codeQuality": 0,
-  "security": 0,
-  "featureCompletion": 0,
-  "documentation": 0,
-  "testCoverage": 0,
-  "architecture": 0,
-  "completionScore": 0,
+  "overallScore": 0,
+  "trustScore": 0,
   "confidenceScore": 0,
   "riskScore": 0,
-  "trustScore": 0,
-  "riskLevel": "Low" | "Medium" | "High",
+  "riskLevel": "",
+  "recommendation": "",
+
+  "scores": {
+    "featureCompletion": 0,
+    "codeQuality": 0,
+    "security": 0,
+    "documentation": 0,
+    "testing": 0,
+    "deployment": 0,
+    "githubHealth": 0,
+    "innovation": 0
+  },
+
+  "criteriaChecklist": [
+    {
+      "criterion": "",
+      "status": "",
+      "reason": ""
+    }
+  ],
+
   "strengths": [],
   "weaknesses": [],
   "missingEvidence": [],
-  "fraudSignals": [],
-  "summary": "",
-  "reasoning": "",
-  "recommendation": "APPROVE" | "MANUAL_REVIEW" | "REJECT",
-  "suggestions": []
-}
+  "securityFindings": [],
+  "recommendations": [],
 
-Scores are integers 0-100.
-featureCompletion should match completionScore.
-score is the primary overall milestone score.
-riskScore: higher = riskier.
-trustScore: overall trustworthiness.`;
+  "executiveSummary": "",
+  "reviewerNotes": ""
+}`;
 
 function clamp(n, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(Number(n) || 0)));
@@ -116,8 +387,11 @@ function buildUserPrompt(input) {
       content: String(f.content || "").slice(0, 6000),
     }));
 
-  return `Milestone
+  return `## Milestone under review (acceptance criteria are authoritative)
 ${milestoneBlock}
+
+Treat acceptanceCriteria / description as the checklist the builder must satisfy.
+Map each criterion into your criteriaChecklist when possible.
 
 Repository metadata
 ${JSON.stringify(
@@ -177,73 +451,169 @@ ${JSON.stringify(fileTree || githubData?.fileTree || githubData?.treeSample || [
 Source files (selected for review)
 ${JSON.stringify(sources, null, 2)}
 
-Return ONLY JSON with score + category scores.`;
+Return ONLY valid JSON matching the Equidox AI v1.0 schema.`;
+}
+
+function mapChecklistStatus(row = {}) {
+  const raw = String(row.status || row.State || "").toUpperCase().trim();
+  if (["PASS", "FAIL", "PARTIAL", "NOT_VERIFIED"].includes(raw)) return raw;
+  if (row.met === true) return "PASS";
+  if (row.met === false) return "FAIL";
+  return "NOT_VERIFIED";
 }
 
 function normalizeReport(raw, meta) {
+  const nested = raw.scores && typeof raw.scores === "object" ? raw.scores : {};
   const recommendation = mapRecommendation(
     raw.recommendation || raw.recommended_action
   );
+
   const featureCompletion = clamp(
-    raw.featureCompletion ??
+    nested.featureCompletion ??
+      raw.featureCompletion ??
       raw.feature_completion_score ??
       raw.completionScore ??
       raw.completion_score
   );
   const codeQuality = clamp(
-    raw.codeQuality ?? raw.code_quality_score ?? raw.codeQualityScore ?? 50
+    nested.codeQuality ??
+      raw.codeQuality ??
+      raw.code_quality_score ??
+      raw.codeQualityScore ??
+      50
   );
   const security = clamp(
-    raw.security ?? raw.security_score ?? raw.securityScore ?? 50
+    nested.security ?? raw.security ?? raw.security_score ?? raw.securityScore ?? 50
   );
   const documentation = clamp(
-    raw.documentation ??
+    nested.documentation ??
+      raw.documentation ??
       raw.documentation_score ??
       raw.documentationScore ??
       50
   );
-  const testCoverage = clamp(
-    raw.testCoverage ??
+  const testing = clamp(
+    nested.testing ??
+      raw.testing ??
+      raw.testCoverage ??
       raw.test_coverage_score ??
       raw.testCoverageScore ??
       (meta.githubData?.hasTests ? 55 : 25)
   );
+  const deployment = clamp(
+    nested.deployment ??
+      raw.deployment ??
+      raw.deployment_score ??
+      raw.deploymentScore ??
+      50
+  );
+  const githubHealth = clamp(
+    nested.githubHealth ??
+      raw.githubHealth ??
+      raw.github_health_score ??
+      raw.githubHealthScore ??
+      50
+  );
+  const innovation = clamp(
+    nested.innovation ??
+      raw.innovation ??
+      raw.innovation_score ??
+      raw.innovationScore ??
+      50
+  );
+  // Architecture folded into code quality in v1.0; keep a display field
   const architecture = clamp(
     raw.architecture ??
       raw.architecture_score ??
       raw.architectureScore ??
-      50
+      codeQuality
   );
-  const categoryAvg = Math.round(
-    (codeQuality +
-      security +
-      featureCompletion +
-      documentation +
-      testCoverage +
-      architecture) /
-      6
+
+  const weighted = Math.round(
+    featureCompletion * 0.3 +
+      codeQuality * 0.2 +
+      security * 0.15 +
+      documentation * 0.1 +
+      testing * 0.1 +
+      deployment * 0.05 +
+      githubHealth * 0.05 +
+      innovation * 0.05
   );
-  const score = clamp(raw.score ?? raw.overall_score ?? categoryAvg);
+  const score = clamp(
+    raw.overallScore ?? raw.overall_score ?? raw.score ?? weighted
+  );
   const riskScore = clamp(raw.riskScore ?? raw.risk_score);
   const confidenceScore = clamp(
-    raw.confidenceScore ?? raw.confidence_score ?? Math.round((score + (100 - riskScore)) / 2)
+    raw.confidenceScore ??
+      raw.confidence_score ??
+      Math.round((score + (100 - riskScore)) / 2)
   );
-  const riskLevel =
-    raw.riskLevel ||
-    (riskScore >= 70 ? "High" : riskScore >= 40 ? "Medium" : "Low");
+
+  const riskRaw = String(raw.riskLevel || raw.risk_level || "").toUpperCase();
+  const riskLevel = ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(riskRaw)
+    ? riskRaw
+    : riskScore >= 85
+      ? "CRITICAL"
+      : riskScore >= 70
+        ? "HIGH"
+        : riskScore >= 40
+          ? "MEDIUM"
+          : "LOW";
+
+  const checklistSource = Array.isArray(raw.criteriaChecklist)
+    ? raw.criteriaChecklist
+    : Array.isArray(raw.criteria_checklist)
+      ? raw.criteria_checklist
+      : [];
+
+  const criteriaChecklist = checklistSource.map((row) => {
+    const status = mapChecklistStatus(row);
+    return {
+      criterion: String(row?.criterion || row?.criteria || row?.title || ""),
+      status,
+      reason: String(row?.reason || row?.notes || ""),
+      // legacy UI fields
+      met: status === "PASS" || status === "PARTIAL",
+      notes: String(row?.reason || row?.notes || ""),
+    };
+  });
+
+  const securityFindings = Array.isArray(raw.securityFindings)
+    ? raw.securityFindings.map(String)
+    : Array.isArray(raw.security_findings)
+      ? raw.security_findings.map(String)
+      : Array.isArray(raw.fraudSignals)
+        ? raw.fraudSignals.map(String)
+        : Array.isArray(raw.fraud_signals)
+          ? raw.fraud_signals.map(String)
+          : [];
+
+  const recommendations = Array.isArray(raw.recommendations)
+    ? raw.recommendations.map(String)
+    : Array.isArray(raw.suggestions)
+      ? raw.suggestions.map(String)
+      : [];
+
+  const executiveSummary =
+    raw.executiveSummary ||
+    raw.executive_summary ||
+    raw.summary ||
+    "Analysis complete.";
+  const reviewerNotes =
+    raw.reviewerNotes || raw.reviewer_notes || raw.reasoning || "";
 
   return {
-    // Primary architecture score
     score,
     overall_score: score,
-    // Category scores (architecture diagram)
     code_quality_score: codeQuality,
     security_score: security,
     feature_completion_score: featureCompletion,
     documentation_score: documentation,
-    test_coverage_score: testCoverage,
+    test_coverage_score: testing,
     architecture_score: architecture,
-    // Legacy / secondary fields
+    deployment_score: deployment,
+    github_health_score: githubHealth,
+    innovation_score: innovation,
     completion_score: featureCompletion,
     confidence_score: confidenceScore,
     risk_score: riskScore,
@@ -251,9 +621,6 @@ function normalizeReport(raw, meta) {
       raw.trustScore ??
         raw.trust_score ??
         Math.round((score + confidenceScore + (100 - riskScore)) / 3)
-    ),
-    deployment_score: clamp(
-      raw.deployment_score ?? raw.deploymentScore ?? 50
     ),
     risk_level: riskLevel,
     strengths: Array.isArray(raw.strengths) ? raw.strengths.map(String) : [],
@@ -263,26 +630,27 @@ function normalizeReport(raw, meta) {
       : Array.isArray(raw.missing_evidence)
         ? raw.missing_evidence.map(String)
         : [],
-    fraud_signals: Array.isArray(raw.fraudSignals)
-      ? raw.fraudSignals.map(String)
-      : Array.isArray(raw.fraud_signals)
-        ? raw.fraud_signals.map(String)
-        : [],
-    suggestions: Array.isArray(raw.suggestions)
-      ? raw.suggestions.map(String)
-      : [],
+    fraud_signals: securityFindings,
+    security_findings: securityFindings,
+    suggestions: recommendations,
+    recommendations,
+    criteria_checklist: criteriaChecklist,
     findings: [
       ...(Array.isArray(raw.strengths) ? raw.strengths.map((s) => `+ ${s}`) : []),
       ...(Array.isArray(raw.weaknesses)
         ? raw.weaknesses.map((w) => `- ${w}`)
         : []),
     ],
-    summary: raw.summary || "Analysis complete.",
-    reasoning: raw.reasoning || raw.summary || "",
+    summary: executiveSummary,
+    executive_summary: executiveSummary,
+    reasoning: reviewerNotes || executiveSummary,
+    reviewer_notes: reviewerNotes,
     recommended_action: recommendation,
     recommendation: String(
       raw.recommendation || recommendation.toUpperCase()
-    ).toUpperCase(),
+    )
+      .toUpperCase()
+      .replace(/\s+/g, "_"),
     github: meta.githubData || null,
     documentation: meta.documentation || null,
     source: meta.providerName || meta.providerId || "ai",
@@ -316,8 +684,11 @@ function chatCompletionsUrl(baseUrl) {
     .trim()
     .replace(/\/+$/, "");
   // OpenAI SDK style: base already includes /v1 → append /chat/completions
-  // Host-only style: https://api.deepseek.com → append /v1/chat/completions
-  if (/\/v1$/i.test(base)) return `${base}/chat/completions`;
+  // Gemini OpenAI-compat: .../v1beta/openai → append /chat/completions
+  // Host-only style: https://api.example.com → append /v1/chat/completions
+  if (/\/v1$/i.test(base) || /\/openai$/i.test(base)) {
+    return `${base}/chat/completions`;
+  }
   return `${base}/v1/chat/completions`;
 }
 
@@ -489,7 +860,7 @@ export async function analyzeMilestone(input = {}) {
   const chain = await providersInOrder();
   if (!chain.length) {
     const err = new Error(
-      "No AI provider configured. Set DEEPSEEK_API_KEY (or OPENAI_API_KEY / AI_API_KEY) in backend/.env."
+      "No AI provider configured. Set AI_API_KEY for Kimi (or GEMINI_API_KEY / DEEPSEEK_API_KEY / OPENAI_API_KEY) in backend/.env."
     );
     err.code = "AI_NOT_CONFIGURED";
     throw err;
@@ -549,13 +920,16 @@ You do not release funds or make on-chain decisions.`;
       trust_score: analysis?.trust_score,
       risk_level: analysis?.risk_level,
       recommendation: analysis?.recommendation || analysis?.recommended_action,
-      summary: analysis?.summary,
-      reasoning: analysis?.reasoning,
+      summary: analysis?.executive_summary || analysis?.summary,
+      reasoning: analysis?.reviewer_notes || analysis?.reasoning,
       strengths: analysis?.strengths,
       weaknesses: analysis?.weaknesses,
       missing_evidence: analysis?.missing_evidence,
+      security_findings:
+        analysis?.security_findings || analysis?.fraud_signals,
       fraud_signals: analysis?.fraud_signals,
-      suggestions: analysis?.suggestions,
+      suggestions: analysis?.recommendations || analysis?.suggestions,
+      criteria_checklist: analysis?.criteria_checklist,
     },
   };
 

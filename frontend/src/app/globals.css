@@ -379,6 +379,46 @@ textarea.field-input {
   background: #3f3f46;
 }
 
+/* Landing marquees / pulse (Covenant-style motion, Crucible colors) */
+@keyframes eq-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes eq-pulse-gold {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(222, 255, 59, 0.35);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(222, 255, 59, 0);
+    opacity: 0.92;
+  }
+}
+
+.eq-marquee {
+  display: flex;
+  width: max-content;
+  animation: eq-marquee 36s linear infinite;
+}
+
+.eq-marquee-slow {
+  animation-duration: 48s;
+}
+
+.eq-marquee-reverse {
+  animation-direction: reverse;
+}
+
+.eq-pulse-gold {
+  animation: eq-pulse-gold 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .panel-border,
   .btn,
@@ -392,5 +432,9 @@ textarea.field-input {
   .panel-border:hover,
   .card-lift:hover {
     transform: none;
+  }
+  .eq-marquee,
+  .eq-pulse-gold {
+    animation: none !important;
   }
 }
