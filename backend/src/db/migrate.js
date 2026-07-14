@@ -38,15 +38,25 @@ CREATE TABLE IF NOT EXISTS milestones (
 
 CREATE TABLE IF NOT EXISTS ai_reports (
   id SERIAL PRIMARY KEY,
+  grant_id INTEGER REFERENCES grants(id),
   milestone_id INTEGER REFERENCES milestones(id),
+  model TEXT,
+  provider TEXT,
+  prompt_version TEXT,
   completion_score NUMERIC(5,2),
   confidence_score NUMERIC(5,2),
   risk_score NUMERIC(5,2),
+  trust_score NUMERIC(5,2),
+  recommendation TEXT,
   summary TEXT,
   recommended_action TEXT,
   report_json JSONB,
   ipfs_hash TEXT,
   premium BOOLEAN DEFAULT FALSE,
+  latency_ms INTEGER,
+  tokens_prompt INTEGER,
+  tokens_completion INTEGER,
+  tokens_total INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -76,6 +86,12 @@ CREATE TABLE IF NOT EXISTS x402_receipts (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_grants_on_chain ON grants(on_chain_grant_id);
 CREATE INDEX IF NOT EXISTS idx_milestones_grant ON milestones(grant_id);
 CREATE INDEX IF NOT EXISTS idx_events_name ON chain_events(event_name);
@@ -95,6 +111,21 @@ const ALTERS = [
   `ALTER TABLE milestones ADD COLUMN IF NOT EXISTS release_tx_hash TEXT`,
   `ALTER TABLE milestones ADD COLUMN IF NOT EXISTS evidence_json JSONB`,
   `ALTER TABLE milestones ADD COLUMN IF NOT EXISTS evidence_ipfs_cid TEXT`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS grant_id INTEGER REFERENCES grants(id)`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS model TEXT`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS provider TEXT`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS prompt_version TEXT`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS trust_score NUMERIC(5,2)`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS recommendation TEXT`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS latency_ms INTEGER`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS tokens_prompt INTEGER`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS tokens_completion INTEGER`,
+  `ALTER TABLE ai_reports ADD COLUMN IF NOT EXISTS tokens_total INTEGER`,
+  `CREATE TABLE IF NOT EXISTS app_settings (
+     key TEXT PRIMARY KEY,
+     value JSONB NOT NULL DEFAULT '{}'::jsonb,
+     updated_at TIMESTAMPTZ DEFAULT NOW()
+   )`,
 ];
 
 export async function migrate() {

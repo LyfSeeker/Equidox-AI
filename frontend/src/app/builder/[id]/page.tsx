@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import {
   CheckCircle,
   Trophy,
@@ -15,6 +15,13 @@ import { useParams } from "next/navigation";
 import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
 import { shortAddress, stroopsToXlm } from "@/lib/config";
+import {
+  PassportMark,
+  SorobanMark,
+  ShipperMark,
+  FundedMark,
+  VerifiedMark,
+} from "@/components/PassportMarks";
 
 type PassportView = {
   builder: string;
@@ -25,9 +32,32 @@ type PassportView = {
   badges: number;
   verification_count: number;
   source: string;
-  recent_payments?: { id: number; event_name: string; tx_hash: string | null; indexed_at: string }[];
-  verification_history?: { id: number; event_name: string; indexed_at: string }[];
+  recent_payments?: {
+    id: number;
+    event_name: string;
+    tx_hash: string | null;
+    indexed_at: string;
+  }[];
+  verification_history?: {
+    id: number;
+    event_name: string;
+    indexed_at: string;
+  }[];
 };
+
+type Mark = ComponentType<SVGProps<SVGSVGElement>>;
+
+const ON_CHAIN_BADGES: {
+  label: string;
+  detail: string;
+  Mark: Mark;
+  tone: "gold" | "cyan";
+}[] = [
+  { label: "SOROBAN", detail: "Builder", Mark: SorobanMark, tone: "cyan" },
+  { label: "SHIPPER", detail: "Milestones", Mark: ShipperMark, tone: "gold" },
+  { label: "FUNDED", detail: "Escrow", Mark: FundedMark, tone: "gold" },
+  { label: "VERIFIED", detail: "AI Hash", Mark: VerifiedMark, tone: "cyan" },
+];
 
 export default function BuilderPassport() {
   const params = useParams();
@@ -54,7 +84,9 @@ export default function BuilderPassport() {
         if (!cancelled) setPassport(data);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load passport");
+          setError(
+            err instanceof Error ? err.message : "Failed to load passport"
+          );
           setPassport({
             builder: targetAddress,
             reputation_score: 0,
@@ -82,48 +114,57 @@ export default function BuilderPassport() {
     <div className="max-w-5xl mx-auto py-8 font-mono text-zinc-400">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-12">
         <div className="flex items-center gap-6">
-          <div className="w-24 h-24 rounded-sm bg-crucible-bg border border-crucible-border flex items-center justify-center text-4xl shadow-[0_0_20px_rgba(255,176,0,0.15)] relative overflow-hidden">
-            <div className="absolute inset-0 bg-crucible-gold/10"></div>
-            🚀
+          <div
+            className="relative w-20 h-20 md:w-24 md:h-24 bg-crucible-bg border border-crucible-border flex items-center justify-center"
+            aria-hidden
+          >
+            <span className="pointer-events-none absolute left-0 top-0 h-2.5 w-2.5 border-l border-t border-crucible-gold/70" />
+            <span className="pointer-events-none absolute right-0 top-0 h-2.5 w-2.5 border-r border-t border-crucible-gold/70" />
+            <span className="pointer-events-none absolute bottom-0 left-0 h-2.5 w-2.5 border-b border-l border-crucible-gold/70" />
+            <span className="pointer-events-none absolute bottom-0 right-0 h-2.5 w-2.5 border-b border-r border-crucible-gold/70" />
+            <PassportMark className="w-12 h-12 md:w-14 md:h-14 text-crucible-gold" />
           </div>
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
               <h1 className="text-3xl font-bold text-white uppercase tracking-widest">
                 Builder Passport
               </h1>
-              <span className="px-2 py-1 rounded border border-crucible-cyan text-crucible-cyan bg-crucible-cyan/10 text-xs font-bold">
+              <span className="badge badge-cyan">
                 {passport?.source === "on-chain" ? "ON-CHAIN" : "SYNCED"}
               </span>
             </div>
             <p className="text-zinc-500 font-bold tracking-widest">
-              {targetAddress ? shortAddress(targetAddress, 6) : "Connect wallet to load"}
+              {targetAddress
+                ? shortAddress(targetAddress, 6)
+                : "Connect wallet to load"}
             </p>
           </div>
         </div>
 
-        <div className="panel-border px-6 py-4 flex items-center gap-6">
+        <div className="panel-static px-6 py-4 flex items-center gap-6">
           <div className="text-right">
             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">
               Reputation Score
             </p>
-            <p className="text-3xl font-bold text-crucible-gold">
+            <p className="text-3xl font-bold text-crucible-gold tabular-nums">
               {loading ? "…" : displayScore}
               <span className="text-sm text-zinc-600">/1000</span>
             </p>
           </div>
-          <div className="h-12 w-px bg-crucible-border"></div>
+          <div className="h-12 w-px bg-crucible-border" />
           <Activity className="w-8 h-8 text-crucible-gold opacity-50" />
         </div>
       </div>
 
       {!address && routeId === "me" && (
-        <div className="panel-border p-6 mb-8 flex items-center justify-between gap-4">
-          <p className="text-sm text-zinc-500">
+        <div className="panel-static p-6 mb-8 flex items-center justify-between gap-4">
+          <p className="text-sm text-zinc-500 font-sans">
             Connect Freighter to load your on-chain Builder Passport.
           </p>
           <button
+            type="button"
             onClick={() => connect().catch(() => undefined)}
-            className="px-4 py-2 bg-crucible-gold text-black text-xs font-bold uppercase tracking-widest"
+            className="btn btn-primary btn-sm"
           >
             Connect Wallet
           </button>
@@ -131,16 +172,19 @@ export default function BuilderPassport() {
       )}
 
       {error && (
-        <div className="panel-border p-4 mb-6 text-[10px] text-crucible-gold">
+        <div className="panel-static p-4 mb-6 text-[10px] text-crucible-gold">
           {error} — showing available passport data.
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="panel-border p-6 col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="panel-static p-6 col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="flex flex-col">
-            <CheckCircle className="w-5 h-5 text-crucible-cyan mb-3" />
-            <p className="text-2xl font-bold text-white mb-1">
+            <CheckCircle
+              className="w-5 h-5 text-crucible-cyan mb-3"
+              strokeWidth={1.75}
+            />
+            <p className="text-2xl font-bold text-white mb-1 tabular-nums">
               {passport?.completed_milestones ?? 0}
             </p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
@@ -148,8 +192,11 @@ export default function BuilderPassport() {
             </p>
           </div>
           <div className="flex flex-col">
-            <DollarSign className="w-5 h-5 text-crucible-gold mb-3" />
-            <p className="text-2xl font-bold text-white mb-1">
+            <DollarSign
+              className="w-5 h-5 text-crucible-gold mb-3"
+              strokeWidth={1.75}
+            />
+            <p className="text-2xl font-bold text-white mb-1 tabular-nums">
               {stroopsToXlm(passport?.total_funds_received)} XLM
             </p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
@@ -157,8 +204,11 @@ export default function BuilderPassport() {
             </p>
           </div>
           <div className="flex flex-col">
-            <Trophy className="w-5 h-5 text-crucible-gold mb-3" />
-            <p className="text-2xl font-bold text-white mb-1">
+            <Trophy
+              className="w-5 h-5 text-crucible-gold mb-3"
+              strokeWidth={1.75}
+            />
+            <p className="text-2xl font-bold text-white mb-1 tabular-nums">
               {passport?.completed_grants ?? 0}
             </p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
@@ -166,8 +216,11 @@ export default function BuilderPassport() {
             </p>
           </div>
           <div className="flex flex-col">
-            <Package className="w-5 h-5 text-crucible-cyan mb-3" />
-            <p className="text-2xl font-bold text-white mb-1">
+            <Package
+              className="w-5 h-5 text-crucible-cyan mb-3"
+              strokeWidth={1.75}
+            />
+            <p className="text-2xl font-bold text-white mb-1 tabular-nums">
               {passport?.verification_count ?? 0}
             </p>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
@@ -176,7 +229,7 @@ export default function BuilderPassport() {
           </div>
         </div>
 
-        <div className="panel-border p-6 col-span-1">
+        <div className="panel-static p-6 col-span-1">
           <h3 className="text-xs font-bold mb-6 flex items-center gap-2 text-white tracking-widest uppercase">
             <Activity className="w-4 h-4 text-crucible-cyan" />
             AI Health Profile
@@ -190,14 +243,16 @@ export default function BuilderPassport() {
                     BADGES BITFIELD
                   </span>
                 </div>
-                <span className="text-crucible-cyan font-bold text-xs">
+                <span className="text-crucible-cyan font-bold text-xs tabular-nums">
                   {passport?.badges ?? 0}
                 </span>
               </div>
-              <div className="w-full h-1 bg-black rounded-full overflow-hidden border border-crucible-border">
+              <div className="progress-track">
                 <div
-                  className="h-full bg-crucible-cyan"
-                  style={{ width: `${Math.min(100, (passport?.badges || 0) * 10 + 20)}%` }}
+                  className="progress-fill bg-crucible-cyan"
+                  style={{
+                    width: `${Math.min(100, (passport?.badges || 0) * 10 + 20)}%`,
+                  }}
                 />
               </div>
             </div>
@@ -209,13 +264,13 @@ export default function BuilderPassport() {
                     REPUTATION
                   </span>
                 </div>
-                <span className="text-crucible-gold font-bold text-xs">
+                <span className="text-crucible-gold font-bold text-xs tabular-nums">
                   {displayScore}/1000
                 </span>
               </div>
-              <div className="w-full h-1 bg-black rounded-full overflow-hidden border border-crucible-border">
+              <div className="progress-track">
                 <div
-                  className="h-full bg-crucible-gold"
+                  className="progress-fill bg-crucible-gold"
                   style={{ width: `${Math.min(100, displayScore / 10)}%` }}
                 />
               </div>
@@ -229,12 +284,12 @@ export default function BuilderPassport() {
           <h2 className="text-xs font-bold mb-6 text-white uppercase tracking-widest border-b border-crucible-border pb-2">
             Passport Source
           </h2>
-          <div className="panel-border p-5 flex items-center justify-between">
+          <div className="panel-static p-5 flex items-center justify-between">
             <div>
               <h4 className="font-bold text-sm text-white mb-1 uppercase tracking-wider">
                 Builder Passport Contract
               </h4>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-zinc-500 font-sans">
                 Data loaded via Equidox API from Soroban / local fallback.
               </p>
             </div>
@@ -251,7 +306,7 @@ export default function BuilderPassport() {
           </div>
 
           {(passport?.recent_payments?.length || 0) > 0 && (
-            <div className="mt-4 panel-border p-4 space-y-2">
+            <div className="mt-4 panel-static p-4 space-y-2">
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-white">
                 Recent Payments
               </h4>
@@ -264,7 +319,7 @@ export default function BuilderPassport() {
           )}
 
           {(passport?.verification_history?.length || 0) > 0 && (
-            <div className="mt-4 panel-border p-4 space-y-2">
+            <div className="mt-4 panel-static p-4 space-y-2">
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-white">
                 Verification History
               </h4>
@@ -281,26 +336,35 @@ export default function BuilderPassport() {
           <h2 className="text-xs font-bold mb-6 text-white uppercase tracking-widest border-b border-crucible-border pb-2">
             On-Chain Badges
           </h2>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: "SOROBAN", detail: "Builder" },
-              { label: "SHIPPER", detail: "Milestones" },
-              { label: "FUNDED", detail: "Escrow" },
-              { label: "VERIFIED", detail: "AI Hash" },
-            ].map((badge) => (
-              <div
-                key={badge.label}
-                className="panel-border p-4 text-center flex flex-col items-center opacity-80"
-              >
-                <div className="w-10 h-10 bg-crucible-bg border border-crucible-gold/50 flex items-center justify-center mb-3 text-lg">
-                  ⚡
+          <div className="grid grid-cols-2 gap-3">
+            {ON_CHAIN_BADGES.map((badge) => {
+              const Icon = badge.Mark;
+              const tone =
+                badge.tone === "gold"
+                  ? "text-crucible-gold border-crucible-gold/25"
+                  : "text-crucible-cyan border-crucible-cyan/25";
+              const bar =
+                badge.tone === "gold" ? "bg-crucible-gold" : "bg-crucible-cyan";
+              return (
+                <div
+                  key={badge.label}
+                  className="relative overflow-hidden border border-crucible-border bg-crucible-bg p-4 flex flex-col items-center text-center"
+                >
+                  <span className={`absolute inset-x-0 top-0 h-px ${bar} opacity-60`} />
+                  <div
+                    className={`mb-3 flex h-12 w-12 items-center justify-center border bg-black/40 ${tone}`}
+                  >
+                    <Icon className="h-7 w-7" />
+                  </div>
+                  <p className="font-bold text-[10px] text-white tracking-[0.18em]">
+                    {badge.label}
+                  </p>
+                  <p className="mt-1 text-[9px] uppercase tracking-widest text-zinc-600">
+                    {badge.detail}
+                  </p>
                 </div>
-                <p className="font-bold text-[10px] text-white tracking-widest">
-                  {badge.label}
-                </p>
-                <p className="text-[9px] text-zinc-500 mt-1">{badge.detail}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

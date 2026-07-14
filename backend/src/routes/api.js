@@ -6,10 +6,33 @@ import {
   fundWithFriendbot,
   readPassport,
 } from "../services/stellar.js";
+import { getAiConfig } from "../services/settings.js";
 
 const router = Router();
 
-router.get("/health", (_req, res) => {
+router.get("/health", async (_req, res) => {
+  let ai = {
+    deepseek: Boolean(process.env.DEEPSEEK_API_KEY),
+    openai: Boolean(process.env.OPENAI_API_KEY),
+    model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+    providers: 0,
+  };
+  try {
+    const cfg = await getAiConfig();
+    const ready = cfg.providers.filter((p) => p.apiKey);
+    const primary =
+      cfg.providers.find((p) => p.id === cfg.primaryProviderId) || ready[0];
+    ai = {
+      deepseek: ready.some((p) => p.id === "deepseek"),
+      openai: ready.some((p) => p.id === "openai"),
+      model: primary?.model || "—",
+      primary: primary?.id || null,
+      providers: ready.length,
+    };
+  } catch {
+    // keep env fallback
+  }
+
   res.json({
     status: "ok",
     service: "equidox-backend",
@@ -18,6 +41,7 @@ router.get("/health", (_req, res) => {
       grantManager: process.env.GRANT_MANAGER_CONTRACT_ID || null,
       builderPassport: process.env.BUILDER_PASSPORT_CONTRACT_ID || null,
     },
+    ai,
     indexer: process.env.INDEXER_ENABLED !== "false",
   });
 });

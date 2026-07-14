@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { query } from "../db/client.js";
-import { analyzeMilestone, analyzePremium, PREMIUM_TYPES } from "../services/ai.js";
+import { analyzeMilestone, analyzePremium, hashReport, PREMIUM_TYPES } from "../services/ai.js";
 import { uploadJsonToIpfs } from "../services/ipfs.js";
 import {
   buildContractInvoke,
@@ -376,23 +376,54 @@ router.post("/verify", async (req, res, next) => {
       demoUrl,
       docsUrl,
       milestoneTitle: m.title,
+      milestoneDescription: m.description,
+      milestoneAmount: m.amount_stroops,
+      milestone: {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        amount_stroops: m.amount_stroops,
+        status: m.status,
+      },
     });
 
-    const uploaded = await uploadJsonToIpfs(analysis);
+    const reportHash = hashReport(analysis);
+    const uploaded = await uploadJsonToIpfs(analysis).catch(() => ({
+      hashBytes: reportHash,
+    }));
+    const verificationHash = uploaded.hashBytes || reportHash;
 
     await query(
-      `INSERT INTO ai_reports
-        (milestone_id, completion_score, confidence_score, risk_score, summary, recommended_action, report_json, ipfs_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO ai_reports (
+         milestone_id, grant_id, model, provider, prompt_version,
+         completion_score, confidence_score, risk_score, trust_score,
+         recommendation, summary, recommended_action, report_json, ipfs_hash,
+         latency_ms, tokens_prompt, tokens_completion, tokens_total
+       ) VALUES (
+         $1, $2, $3, $4, $5,
+         $6, $7, $8, $9,
+         $10, $11, $12, $13, $14,
+         $15, $16, $17, $18
+       )`,
       [
         milestoneId,
+        m.grant_id,
+        analysis.model || null,
+        analysis.provider || analysis.source || null,
+        analysis.prompt_version || null,
         analysis.completion_score,
         analysis.confidence_score,
         analysis.risk_score,
+        analysis.trust_score ?? null,
+        analysis.recommendation || analysis.recommended_action,
         analysis.summary,
         analysis.recommended_action,
         JSON.stringify(analysis),
-        uploaded.hashBytes,
+        verificationHash,
+        analysis.latency_ms ?? null,
+        analysis.tokens?.prompt ?? null,
+        analysis.tokens?.completion ?? null,
+        analysis.tokens?.total ?? null,
       ]
     );
 
@@ -407,7 +438,7 @@ router.post("/verify", async (req, res, next) => {
         verificationHash:
           m.verification_hash ||
           synced.chain?.verification_hash ||
-          uploaded.hashBytes,
+          verificationHash,
         unsignedTransaction: null,
         alreadyAnchored: true,
         chainStatus,
@@ -428,18 +459,21 @@ router.post("/verify", async (req, res, next) => {
         addressToScVal(operatorAddress),
         u64ToScVal(onChainGrantId),
         u32ToScVal(onChainMilestoneId),
-        bytesN32ToScVal(uploaded.hashBytes),
+        bytesN32ToScVal(verificationHash),
       ],
     });
 
     res.json({
       analysis,
-      verificationHash: uploaded.hashBytes,
+      verificationHash,
       unsignedTransaction: tx,
       alreadyAnchored: false,
       chainStatus,
     });
   } catch (err) {
+    if (err.code === "AI_NOT_CONFIGURED" || err.code === "DEEPSEEK_NOT_CONFIGURED") {
+      return res.status(503).json({ error: err.message, code: err.code });
+    }
     next(err);
   }
 });
@@ -489,7 +523,8 @@ router.post("/approve/build", async (req, res, next) => {
   try {
     const { reviewerAddress, onChainGrantId, onChainMilestoneId, step } =
       req.body;
-    const which = step === "release" ? "release" : "approve";
+    const which =
+      step === "release" ? "release" : step === "reject" ? "reject" : "approve";
 
     if (which === "approve") {
       const approveTransaction = await buildContractInvoke({
@@ -503,6 +538,20 @@ router.post("/approve/build", async (req, res, next) => {
         ],
       });
       return res.json({ step: "approve", transaction: approveTransaction });
+    }
+
+    if (which === "reject") {
+      const rejectTransaction = await buildContractInvoke({
+        sourcePublicKey: reviewerAddress,
+        contractId: process.env.GRANT_MANAGER_CONTRACT_ID,
+        method: "reject_milestone",
+        args: [
+          addressToScVal(reviewerAddress),
+          u64ToScVal(onChainGrantId),
+          u32ToScVal(onChainMilestoneId),
+        ],
+      });
+      return res.json({ step: "reject", transaction: rejectTransaction });
     }
 
     const releaseTransaction = await buildContractInvoke({

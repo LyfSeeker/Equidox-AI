@@ -9,6 +9,9 @@ import {
   Terminal,
   Wallet,
   Trash2,
+  Bot,
+  CheckCircle2,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -26,6 +29,10 @@ import { shortAddress, stroopsToXlm, explorerTxUrl } from "@/lib/config";
 import LifecycleTimeline, {
   buildGrantTimeline,
 } from "@/components/LifecycleTimeline";
+import PageHeader from "@/components/ui/PageHeader";
+import { StatusBadge, Badge } from "@/components/ui/Badge";
+import EmptyState from "@/components/ui/EmptyState";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 
 export default function Dashboard() {
   const { address, connect, signAndSubmit } = useWallet();
@@ -98,6 +105,14 @@ export default function Dashboard() {
     (sum, g) => sum + Number(g.escrowed_stroops || 0),
     0
   );
+  const paidMilestones = milestones.filter((m) => m.status === "paid").length;
+  const successRate =
+    milestones.length > 0
+      ? Math.round((paidMilestones / milestones.length) * 100)
+      : 0;
+  const aiReviews = milestones.filter((m) =>
+    ["under_review", "approved", "paid"].includes(m.status)
+  ).length;
   const topBuilders = Array.from(
     new Map(grants.map((g) => [g.builder_address, g])).values()
   ).slice(0, 5);
@@ -198,157 +213,183 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto h-full flex flex-col gap-6 font-mono text-zinc-400">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white uppercase tracking-wider mb-2">
-            {isAdmin ? "Admin Dashboard" : "Updates Dashboard"}
-          </h1>
-          <p className="text-sm">
-            {isAdmin
-              ? "Manage grants, milestones, reviews, and Soroban payouts."
-              : "See grant updates and open a milestone to submit your documents."}
-          </p>
-        </div>
-        <button
-          onClick={load}
-          className="px-4 py-2 border border-crucible-border hover:bg-white/5 text-[10px] font-bold uppercase tracking-widest"
-        >
-          Refresh
-        </button>
-      </div>
+    <div className="page-shell font-mono text-zinc-400">
+      <PageHeader
+        eyebrow={isAdmin ? "Admin" : "Builder"}
+        title={isAdmin ? "Dashboard" : "Updates"}
+        description={
+          isAdmin
+            ? "KPIs, incoming reviews, live grants, Stellar events, and builder rankings — all in one place."
+            : "Track grant progress and open a milestone when you’re ready to submit evidence."
+        }
+        actions={
+          <button type="button" onClick={load} className="btn btn-ghost btn-sm">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+        }
+      />
 
       {error && (
-        <div className="panel-border p-4 text-crucible-red text-xs break-all">
+        <div className="panel-static p-4 text-crucible-red text-xs break-all border-crucible-red/40">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* KPI grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {[
-          { label: "Active Grants", value: String(activeGrants), icon: Code },
+          { label: "Active Grants", value: String(activeGrants), icon: Code, tone: "gold" },
           {
-            label: "Total Escrow",
-            value: `${stroopsToXlm(totalEscrow)} XLM`,
+            label: "Escrow Value",
+            value: `${stroopsToXlm(totalEscrow)}`,
+            suffix: "XLM",
             icon: Wallet,
+            tone: "cyan",
           },
           {
-            label: "Backend",
-            value: health?.status === "ok" ? "ONLINE" : loading ? "…" : "OFF",
-            icon: Activity,
-          },
-          {
-            label: "Passport",
+            label: "Builder Reputation",
             value: passportScore != null ? String(passportScore) : "—",
             icon: Shield,
+            tone: "gold",
+          },
+          {
+            label: "AI Reviews",
+            value: String(aiReviews),
+            icon: Bot,
+            tone: "cyan",
+          },
+          {
+            label: "Success Rate",
+            value: `${successRate}%`,
+            icon: CheckCircle2,
+            tone: "gold",
+          },
+          {
+            label: "Pending Reviews",
+            value: String(submissions.length),
+            icon: Activity,
+            tone: "cyan",
           },
         ].map((card, i) => (
           <motion.div
             key={card.label}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="panel-border p-4"
+            transition={{ delay: i * 0.04 }}
+            className="panel-border card-lift p-5"
           >
-            <div className="flex justify-between mb-3">
-              <p className="text-[10px] uppercase tracking-widest">{card.label}</p>
-              <card.icon className="w-4 h-4 text-zinc-600" />
+            <div className="flex justify-between mb-4">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-500">
+                {card.label}
+              </p>
+              <card.icon
+                className={`w-4 h-4 ${
+                  card.tone === "gold" ? "text-crucible-gold" : "text-crucible-cyan"
+                }`}
+              />
             </div>
-            <p className="text-2xl font-bold text-white tracking-tight">
-              {loading && card.label !== "Backend" ? "…" : card.value}
+            <p className="text-3xl font-bold text-white tracking-tight tabular-nums">
+              {loading ? "—" : card.value}
             </p>
+            {card.suffix && (
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 mt-1">
+                {card.suffix}
+              </p>
+            )}
           </motion.div>
         ))}
       </div>
 
       {isAdmin && (
-        <div className="panel-border p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-crucible-cyan font-bold tracking-widest text-sm uppercase">
-              Incoming Submissions ({submissions.length})
+        <section className="panel-static p-5 md:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="section-title text-crucible-cyan">
+              <Activity className="w-4 h-4" /> Pending Reviews
             </h2>
+            <Badge tone="cyan">{submissions.length} open</Badge>
           </div>
-          {submissions.length === 0 ? (
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
-              No user documents waiting for review
-            </p>
+          {loading ? (
+            <div className="grid md:grid-cols-2 gap-3">
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          ) : submissions.length === 0 ? (
+            <EmptyState
+              title="All clear"
+              description="No documents waiting for review. New submissions will appear here."
+              actionLabel="Open Review"
+              actionHref="/review"
+            />
           ) : (
-            <div className="space-y-3 max-h-64 overflow-y-auto">
-              {submissions.map((s) => (
-                <Link
+            <div className="grid md:grid-cols-2 gap-3 max-h-72 overflow-y-auto">
+              {submissions.map((s, i) => (
+                <motion.div
                   key={s.id}
-                  href={`/verification/${s.grant_db_id || s.grant_id}`}
-                  className="block panel-border p-3 hover:border-crucible-gold/50"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
                 >
-                  <div className="flex justify-between gap-3 mb-1">
-                    <span className="text-xs text-white font-bold uppercase">
-                      {s.grant_title || `Grant #${s.grant_id}`} ·{" "}
-                      {s.title || `Milestone #${s.id}`}
-                    </span>
-                    <span className="text-[10px] text-crucible-cyan uppercase">
-                      {s.status}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-zinc-500 break-all">
-                    {s.evidence_json?.repoUrl || "No repo URL"}
-                  </p>
-                  {s.evidence_json?.notes && (
-                    <p className="text-[10px] text-zinc-400 mt-1 line-clamp-2">
-                      {s.evidence_json.notes}
+                  <Link
+                    href={`/verification/${s.grant_db_id || s.grant_id}`}
+                    className="block panel-border p-4"
+                  >
+                    <div className="flex justify-between gap-3 mb-2">
+                      <span className="text-xs text-white font-bold uppercase tracking-wider">
+                        {s.grant_title || `Grant #${s.grant_id}`} ·{" "}
+                        {s.title || `MS #${s.id}`}
+                      </span>
+                      <StatusBadge status={s.status} />
+                    </div>
+                    <p className="text-[10px] text-zinc-500 break-all">
+                      {s.evidence_json?.repoUrl || "No repo URL"}
                     </p>
-                  )}
-                </Link>
+                  </Link>
+                </motion.div>
               ))}
             </div>
           )}
-        </div>
+        </section>
       )}
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-6">
-          <div className="panel-border p-5 min-h-[320px] flex flex-col relative overflow-hidden">
-            <div className="flex items-center justify-between mb-6 z-10">
-              <h2 className="text-crucible-gold font-bold flex items-center gap-2 tracking-widest text-sm">
-                <GitMerge className="w-4 h-4" /> LIVE GRANTS
+          <section className="panel-static p-5 md:p-6 min-h-[320px] flex flex-col">
+            <div className="flex items-center justify-between mb-6 gap-3">
+              <h2 className="section-title text-crucible-gold">
+                <GitMerge className="w-4 h-4" /> Grant Progress
               </h2>
-              <div className="flex gap-3 text-[10px] font-bold">
-                <span className="px-3 py-1 rounded-full border border-crucible-cyan text-crucible-cyan bg-crucible-cyan/10">
-                  BUILDERS: {topBuilders.length}
-                </span>
-                <span className="px-3 py-1 rounded-full border border-crucible-gold text-crucible-gold bg-crucible-gold/10">
-                  REGISTERED: {grants.length}
-                </span>
+              <div className="flex gap-2">
+                <Badge tone="cyan">Builders {topBuilders.length}</Badge>
+                <Badge tone="gold">Registered {grants.length}</Badge>
               </div>
             </div>
 
             {loading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-20 bg-white/5 animate-pulse" />
-                ))}
+                <SkeletonCard />
+                <SkeletonCard />
               </div>
             ) : grants.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-                <p className="text-sm text-zinc-500">No grants yet.</p>
-                {isAdmin ? (
-                  <Link
-                    href="/grants"
-                    className="px-4 py-2 bg-crucible-gold text-black text-xs font-bold uppercase tracking-widest"
-                  >
-                    Create a Grant
-                  </Link>
-                ) : (
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">
-                    Waiting for admin to publish grants
-                  </p>
-                )}
-              </div>
+              <EmptyState
+                icon={GitMerge}
+                title="No grants yet"
+                description={
+                  isAdmin
+                    ? "Create your first grant to start escrowed milestone payouts."
+                    : "Waiting for an admin to publish grants."
+                }
+                actionLabel={isAdmin ? "Create a Grant" : undefined}
+                actionHref={isAdmin ? "/grants" : undefined}
+              />
             ) : (
               <div className="space-y-3 overflow-y-auto max-h-[420px]">
                 {grants.map((grant) => {
                   const budget = Number(grant.total_budget_stroops || 0);
                   const escrow = Number(grant.escrowed_stroops || 0);
-                  const pct = budget ? Math.min(100, (escrow / budget) * 100) : 0;
+                  const pct = budget
+                    ? Math.min(100, (escrow / budget) * 100)
+                    : 0;
                   const canCancel =
                     isAdmin &&
                     ["active", "funded"].includes(grant.status) &&
@@ -357,48 +398,38 @@ export default function Dashboard() {
                     !!address && address === grant.provider_address;
 
                   return (
-                    <div
-                      key={grant.id}
-                      className="panel-border p-4 hover:border-crucible-gold/50 transition-colors"
-                    >
-                      <div className="flex justify-between gap-4 mb-2">
+                    <div key={grant.id} className="panel-border p-4 space-y-3">
+                      <div className="flex justify-between gap-4">
                         <Link
                           href={`/verification/${grant.id}`}
-                          className="text-white font-bold uppercase tracking-wider text-sm hover:text-crucible-gold"
+                          className="text-white font-bold uppercase tracking-wider text-sm hover:text-crucible-gold transition-colors"
                         >
                           {grant.title || `Grant #${grant.id}`}
                         </Link>
-                        <span
-                          className={`text-[10px] font-bold uppercase ${
-                            grant.status === "cancelled"
-                              ? "text-crucible-red"
-                              : "text-crucible-cyan"
-                          }`}
-                        >
-                          {grant.status}
-                        </span>
+                        <StatusBadge status={grant.status} />
                       </div>
-                      <p className="text-[10px] text-zinc-500 mb-2">
+                      <p className="text-[10px] text-zinc-500">
                         Builder {shortAddress(grant.builder_address)} · Reviewer{" "}
                         {shortAddress(grant.reviewer_address)} · Budget{" "}
                         {stroopsToXlm(budget)} XLM
                       </p>
-                      <div className="h-1.5 bg-black border border-crucible-border overflow-hidden mb-2">
-                        <div
-                          className="h-full bg-crucible-cyan"
-                          style={{ width: `${pct}%` }}
+                      <div className="progress-track">
+                        <motion.div
+                          className="progress-fill bg-crucible-cyan"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 0.8 }}
                         />
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <p className="text-[10px] text-zinc-600">
                           Escrow {stroopsToXlm(escrow)} · Chain #
-                          {grant.on_chain_grant_id ?? "—"} · Provider{" "}
-                          {shortAddress(grant.provider_address)}
+                          {grant.on_chain_grant_id ?? "—"}
                         </p>
                         <div className="flex items-center gap-2">
                           <Link
                             href={`/verification/${grant.id}`}
-                            className="px-3 py-1.5 border border-crucible-border text-[10px] font-bold uppercase tracking-widest hover:bg-white/5"
+                            className="btn btn-ghost btn-sm"
                           >
                             {isAdmin ? "Review" : "Submit Docs"}
                           </Link>
@@ -409,17 +440,17 @@ export default function Dashboard() {
                               onClick={() => cancelGrant(grant)}
                               title={
                                 isProvider
-                                  ? "Cancel grant and refund escrow to provider"
+                                  ? "Cancel grant and refund escrow"
                                   : "Connect provider wallet to cancel & refund"
                               }
-                              className="px-3 py-1.5 border border-crucible-red/50 text-crucible-red text-[10px] font-bold uppercase tracking-widest hover:bg-crucible-red/10 disabled:opacity-50 flex items-center gap-1.5"
+                              className="btn btn-danger btn-sm"
                             >
                               <Trash2 className="w-3 h-3" />
                               {cancellingId === grant.id
-                                ? "Cancelling..."
+                                ? "Cancelling…"
                                 : escrow > 0
-                                  ? "Delete & Refund"
-                                  : "Delete Grant"}
+                                  ? "Refund"
+                                  : "Delete"}
                             </button>
                           )}
                         </div>
@@ -429,16 +460,18 @@ export default function Dashboard() {
                 })}
               </div>
             )}
-          </div>
+          </section>
         </div>
 
         <div className="col-span-1 flex flex-col gap-6">
-          <LifecycleTimeline steps={timeline} />
-          <div className="panel-border p-5">
+          <LifecycleTimeline
+            steps={timeline}
+            title="Activity Timeline"
+            subtitle={featured?.title || "Featured grant"}
+          />
+          <div className="panel-static p-5">
             <div className="flex justify-between items-start mb-4">
-              <p className="text-[10px] font-bold tracking-widest uppercase">
-                Contracts
-              </p>
+              <p className="section-title">Contracts</p>
               <Shield className="w-4 h-4 text-crucible-gold" />
             </div>
             <p className="text-[10px] text-zinc-500 mb-2 break-all">
@@ -447,24 +480,39 @@ export default function Dashboard() {
             <p className="text-[10px] text-zinc-500 break-all">
               Passport: {shortAddress(health?.contracts?.builderPassport, 6)}
             </p>
+            <p className="text-[10px] mt-3 uppercase tracking-widest">
+              Backend{" "}
+              <span
+                className={
+                  health?.status === "ok"
+                    ? "text-crucible-cyan"
+                    : "text-crucible-red"
+                }
+              >
+                {health?.status === "ok" ? "Online" : loading ? "…" : "Off"}
+              </span>
+            </p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="panel-border p-5 lg:col-span-1">
-          <div className="flex justify-between items-center mb-6 border-b border-crucible-border pb-3">
-            <h3 className="text-xs font-bold flex items-center gap-2 tracking-widest text-white">
-              <Terminal className="w-4 h-4 text-zinc-400" /> EVENT LOG
+        <section className="panel-static p-5 lg:col-span-1">
+          <div className="flex justify-between items-center mb-5 border-b border-crucible-border pb-3">
+            <h3 className="section-title">
+              <Terminal className="w-4 h-4 text-zinc-400" /> Live Events
             </h3>
           </div>
-          <div className="space-y-4 font-mono text-[10px] max-h-64 overflow-y-auto">
+          <div className="space-y-3 font-mono text-[10px] max-h-64 overflow-y-auto">
             {events.length === 0 ? (
               <p className="text-zinc-600">No indexed events yet.</p>
             ) : (
               events.map((ev) => (
-                <div key={ev.id} className="flex gap-3 text-zinc-300">
-                  <span className="text-crucible-gold shrink-0">
+                <div
+                  key={ev.id}
+                  className="flex gap-3 text-zinc-300 p-2 rounded-lg hover:bg-white/[0.03]"
+                >
+                  <span className="text-crucible-gold shrink-0 tabular-nums">
                     {new Date(ev.indexed_at).toLocaleTimeString()}
                   </span>
                   <span className="min-w-0">
@@ -478,53 +526,51 @@ export default function Dashboard() {
                       >
                         {shortAddress(ev.tx_hash, 6)}
                       </a>
-                    ) : (
-                      ""
-                    )}
+                    ) : null}
                   </span>
                 </div>
               ))
             )}
           </div>
-        </div>
+        </section>
 
-        <div className="panel-border p-5 lg:col-span-2">
-          <div className="flex justify-between items-center mb-6 border-b border-crucible-border pb-3">
-            <h3 className="text-xs font-bold tracking-widest text-white uppercase">
-              Top Builders
-            </h3>
+        <section className="panel-static p-5 lg:col-span-2">
+          <div className="flex justify-between items-center mb-5 border-b border-crucible-border pb-3">
+            <h3 className="section-title">Builder Rankings</h3>
             <Link
               href={address ? `/builder/${address}` : "/builder/me"}
-              className="text-[10px] text-crucible-gold font-bold uppercase hover:text-yellow-400"
+              className="text-[10px] text-crucible-gold font-bold uppercase hover:underline"
             >
               Open Passport ›
             </Link>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-2">
             {topBuilders.length === 0 ? (
-              <p className="text-xs text-zinc-600">
-                Connect activity will appear here.
-              </p>
+              <EmptyState
+                title="No builders yet"
+                description="Builder activity will rank here as grants go live."
+              />
             ) : (
-              topBuilders.map((g) => (
+              topBuilders.map((g, i) => (
                 <Link
                   key={g.builder_address}
                   href={`/builder/${g.builder_address}`}
-                  className="flex items-center gap-4 hover:bg-white/5 p-2 -mx-2 rounded"
+                  className="flex items-center gap-4 panel-border !shadow-none p-3"
                 >
-                  <div className="w-10 h-10 rounded bg-black border border-crucible-border flex items-center justify-center">
+                  <span className="text-xs font-bold text-crucible-gold w-6">
+                    #{i + 1}
+                  </span>
+                  <div className="w-10 h-10 rounded-lg bg-black border border-crucible-border flex items-center justify-center">
                     <Activity className="w-5 h-5 text-crucible-gold" />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-bold text-white">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between mb-1 gap-2">
+                      <span className="text-sm font-bold text-white truncate">
                         {shortAddress(g.builder_address)}
                       </span>
-                      <span className="text-[10px] text-zinc-400 uppercase">
-                        {g.status}
-                      </span>
+                      <StatusBadge status={g.status} />
                     </div>
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[10px] text-zinc-500 truncate">
                       {g.title || `Grant #${g.id}`} ·{" "}
                       {stroopsToXlm(g.total_budget_stroops)} XLM
                     </p>
@@ -533,7 +579,7 @@ export default function Dashboard() {
               ))
             )}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

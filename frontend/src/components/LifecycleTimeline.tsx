@@ -67,7 +67,6 @@ export function buildGrantTimeline(opts: {
   );
 }
 
-/** Per-milestone lifecycle for the Review page selection. */
 export function buildMilestoneTimeline(opts: {
   hasGrant: boolean;
   escrowed: number;
@@ -111,10 +110,8 @@ export default function LifecycleTimeline({
   subtitle?: string | null;
 }) {
   return (
-    <div className="panel-border p-5">
-      <h3 className="text-xs font-bold text-white uppercase tracking-widest mb-1">
-        {title}
-      </h3>
+    <div className="panel-static p-5 md:p-6">
+      <h3 className="section-title mb-1">{title}</h3>
       {subtitle ? (
         <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-6">
           {subtitle}
@@ -123,49 +120,62 @@ export default function LifecycleTimeline({
         <div className="mb-6" />
       )}
       <ol className="space-y-0">
-        {steps.map((step, idx) => (
-          <li key={step.id} className="relative flex gap-4 pb-6 last:pb-0">
-            {idx < steps.length - 1 && (
-              <span
-                className={`absolute left-[11px] top-6 w-px h-[calc(100%-8px)] ${
-                  step.done ? "bg-crucible-cyan/50" : "bg-crucible-border"
-                }`}
-              />
-            )}
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: idx * 0.05 }}
-              className="relative z-10"
-            >
-              {step.done ? (
-                <CheckCircle2 className="w-6 h-6 text-crucible-cyan" />
-              ) : (
-                <Circle
-                  className={`w-6 h-6 ${
-                    step.active ? "text-crucible-gold" : "text-zinc-600"
+        {steps.map((step, idx) => {
+          const connectorDone = step.done;
+          return (
+            <li key={step.id} className="relative flex gap-4 pb-7 last:pb-0">
+              {idx < steps.length - 1 && (
+                <span
+                  className={`absolute left-[13px] top-7 w-[2px] h-[calc(100%-10px)] rounded-full ${
+                    connectorDone
+                      ? "bg-gradient-to-b from-crucible-gold to-crucible-gold/20"
+                      : "bg-crucible-border"
                   }`}
                 />
               )}
-            </motion.div>
-            <div>
-              <p
-                className={`text-xs font-bold uppercase tracking-widest ${
-                  step.done
-                    ? "text-white"
-                    : step.active
-                      ? "text-crucible-gold"
-                      : "text-zinc-600"
-                }`}
+              <motion.div
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: idx * 0.04, type: "spring", stiffness: 320 }}
+                className="relative z-10"
               >
-                {step.label}
-              </p>
-              {step.detail && (
-                <p className="text-[10px] text-zinc-500 mt-1">{step.detail}</p>
-              )}
-            </div>
-          </li>
-        ))}
+                {step.done ? (
+                  <CheckCircle2
+                    className="w-7 h-7 text-crucible-gold drop-shadow-[0_0_8px_rgba(222,255,59,0.55)]"
+                    aria-label="Completed"
+                  />
+                ) : (
+                  <Circle
+                    className={`w-7 h-7 ${
+                      step.active
+                        ? "text-crucible-cyan drop-shadow-[0_0_10px_rgba(0,229,255,0.55)]"
+                        : "text-zinc-600"
+                    }`}
+                    aria-label={step.active ? "Current" : "Pending"}
+                  />
+                )}
+              </motion.div>
+              <div className="pt-0.5">
+                <p
+                  className={`text-xs font-bold uppercase tracking-widest ${
+                    step.done
+                      ? "text-white"
+                      : step.active
+                        ? "text-crucible-cyan text-cyan-glow"
+                        : "text-zinc-600"
+                  }`}
+                >
+                  {step.label}
+                </p>
+                {step.detail && (
+                  <p className="text-[10px] text-zinc-500 mt-1 font-sans">
+                    {step.detail}
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
