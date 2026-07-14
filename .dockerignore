@@ -1,0 +1,10 @@
+**/target
+**/node_modules
+**/.git
+**/.env
+**/backend/.env
+**/.soroban
+**/.stellar
+**/*.md
+**/test_snapshots
+contracts/hello-world

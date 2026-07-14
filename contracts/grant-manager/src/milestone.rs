@@ -1,12 +1,48 @@
-use crate::access::{get_passport_contract, require_initialized, require_not_paused, require_verification_operator};
+use crate::access::{
+    get_passport_contract, require_initialized, require_not_paused,
+};
 use crate::escrow::{checked_add_i128, checked_sub_i128, transfer_out};
 use crate::grant::{load_grant, load_milestone, save_grant, save_milestone};
 use crate::passport_client::BuilderPassportContractClient;
 use equidox_common::{
-    AiVerificationAdded, ContractError, GrantStatus, MilestoneApproved, MilestoneRejected,
+    AiVerificationAdded, ContractError, DataKey, GrantStatus, MilestoneApproved, MilestoneRejected,
     MilestoneStatus, MilestoneSubmitted, PaymentReleased, zero_hash, MAX_REPUTATION_DELTA,
 };
 use soroban_sdk::{Address, BytesN, Env};
+
+fn require_can_store_verification(
+    env: &Env,
+    caller: &Address,
+    grant_provider: &Address,
+    grant_reviewer: &Address,
+) -> Result<(), ContractError> {
+    caller.require_auth();
+
+    let operator = env
+        .storage()
+        .instance()
+        .get::<DataKey, Address>(&DataKey::VerificationOperator)
+        .ok_or(ContractError::NotInitialized)?;
+    if *caller == operator {
+        return Ok(());
+    }
+
+    let admin = env
+        .storage()
+        .instance()
+        .get::<DataKey, Address>(&DataKey::Admin)
+        .ok_or(ContractError::NotInitialized)?;
+    if *caller == admin {
+        return Ok(());
+    }
+
+    // Grant parties who create/manage the grant can also anchor AI hashes.
+    if *caller == *grant_provider || *caller == *grant_reviewer {
+        return Ok(());
+    }
+
+    Err(ContractError::Unauthorized)
+}
 
 pub fn submit_milestone(
     env: &Env,
@@ -60,9 +96,10 @@ pub fn store_verification_hash(
 ) -> Result<(), ContractError> {
     require_initialized(env)?;
     require_not_paused(env)?;
-    require_verification_operator(env, &operator)?;
 
     let grant = load_grant(env, grant_id)?;
+    require_can_store_verification(env, &operator, &grant.provider, &grant.reviewer)?;
+
     if grant.status != GrantStatus::Active {
         return Err(ContractError::GrantNotActive);
     }
