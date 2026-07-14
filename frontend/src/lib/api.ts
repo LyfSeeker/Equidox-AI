@@ -73,6 +73,7 @@ export type MilestoneEvidence = {
   demoUrl?: string;
   docsUrl?: string;
   notes?: string | null;
+  /** @deprecated no longer collected from builders */
   commitSha?: string | null;
   milestoneTitle?: string;
   submittedAt?: string;
@@ -149,8 +150,12 @@ export type Analysis = {
   test_coverage_score?: number;
   architecture_score?: number;
   deployment_score?: number;
+  github_health_score?: number;
+  innovation_score?: number;
   summary: string;
+  executive_summary?: string;
   reasoning?: string;
+  reviewer_notes?: string;
   recommended_action: string;
   recommendation?: string;
   findings?: string[];
@@ -158,7 +163,16 @@ export type Analysis = {
   weaknesses?: string[];
   missing_evidence?: string[];
   fraud_signals?: string[];
+  security_findings?: string[];
   suggestions?: string[];
+  recommendations?: string[];
+  criteria_checklist?: {
+    criterion: string;
+    met?: boolean;
+    status?: "PASS" | "FAIL" | "PARTIAL" | "NOT_VERIFIED" | string;
+    notes?: string;
+    reason?: string;
+  }[];
   github?: Record<string, unknown>;
   documentation?: Record<string, unknown> | null;
   source?: string;
@@ -257,6 +271,12 @@ export const api = {
     title: string;
     description: string;
     terms?: string;
+    milestones?: {
+      title: string;
+      description: string;
+      amountXlm?: number | string;
+      deadline?: string | null;
+    }[];
   }) =>
     request<{ metadataHash: string; ipfsCid: string | null }>(
       "/api/grants/metadata",

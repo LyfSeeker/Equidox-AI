@@ -105,14 +105,37 @@ export default function ReviewPage() {
                   className="block panel-border p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1 space-y-1.5">
                       <p className="text-xs text-white font-bold uppercase tracking-widest">
                         {s.grant_title || `Grant #${s.grant_id}`} ·{" "}
                         {s.title || `Milestone #${s.id}`}
                       </p>
-                      <p className="text-[10px] text-zinc-500 mt-1 break-all">
-                        {s.evidence_json?.repoUrl || "No repo URL"}
+                      <p className="text-[10px] text-zinc-500">
+                        <span className="text-zinc-600 uppercase tracking-widest">Repo · </span>
+                        <span className="text-white break-all">
+                          {s.evidence_json?.repoUrl || "—"}
+                        </span>
                       </p>
+                      <p className="text-[10px] text-zinc-500">
+                        <span className="text-zinc-600 uppercase tracking-widest">Demo · </span>
+                        <span className="text-white break-all">
+                          {s.evidence_json?.demoUrl || "—"}
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-zinc-500">
+                        <span className="text-zinc-600 uppercase tracking-widest">Docs · </span>
+                        <span className="text-white break-all">
+                          {s.evidence_json?.docsUrl || "—"}
+                        </span>
+                      </p>
+                      {s.evidence_json?.notes ? (
+                        <p className="text-[10px] text-zinc-400 line-clamp-2 font-sans">
+                          <span className="font-mono text-zinc-600 uppercase tracking-widest">
+                            Notes ·{" "}
+                          </span>
+                          {s.evidence_json.notes}
+                        </p>
+                      ) : null}
                     </div>
                     <StatusBadge status={s.status} />
                   </div>

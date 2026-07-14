@@ -51,7 +51,7 @@ async function persistReport({ grantId, milestoneId, analysis, reportHash }) {
 
 /**
  * POST /api/ai/analyze
- * DeepSeek verification report (no on-chain decision).
+ * AI verification report (no on-chain decision).
  */
 router.post("/analyze", async (req, res, next) => {
   try {

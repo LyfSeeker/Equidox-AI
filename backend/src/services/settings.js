@@ -2,17 +2,26 @@
  * AI provider config — env only (no runtime UI).
  *
  * Set in backend/.env:
+ *   AI_API_KEY=...              (Kimi / Moonshot or other OpenAI-compatible)
+ *   AI_BASE_URL=https://api.moonshot.ai/v1
+ *   AI_MODEL=kimi-k2.6
+ *   AI_PROVIDER_ID=kimi
+ *   AI_PROVIDER_NAME=Kimi
+ *   AI_PRIMARY_PROVIDER=kimi|gemini|deepseek|openai
+ *   GEMINI_API_KEY=...          (optional fallback)
  *   DEEPSEEK_API_KEY=...
- *   DEEPSEEK_BASE_URL=https://api.deepseek.com
- *   DEEPSEEK_MODEL=deepseek-chat
- *   OPENAI_API_KEY=...          (optional fallback)
- *   OPENAI_BASE_URL=https://api.openai.com/v1
- *   OPENAI_MODEL=gpt-4o-mini
- *   AI_PRIMARY_PROVIDER=deepseek|openai
+ *   OPENAI_API_KEY=...
  *   GITHUB_TOKEN=...            (optional, raises GitHub rate limits)
  */
 
 const BUILTIN = {
+  gemini: {
+    id: "gemini",
+    name: "Gemini",
+    type: "openai-compatible",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    model: "gemini-2.5-flash",
+  },
   deepseek: {
     id: "deepseek",
     name: "DeepSeek",
@@ -48,6 +57,17 @@ function normalizeProvider(raw = {}) {
 
 function buildFromEnv() {
   const providers = [];
+
+  if (process.env.GEMINI_API_KEY) {
+    providers.push(
+      normalizeProvider({
+        ...BUILTIN.gemini,
+        baseUrl: process.env.GEMINI_BASE_URL || BUILTIN.gemini.baseUrl,
+        model: process.env.GEMINI_MODEL || BUILTIN.gemini.model,
+        apiKey: process.env.GEMINI_API_KEY,
+      })
+    );
+  }
 
   if (process.env.DEEPSEEK_API_KEY) {
     providers.push(
@@ -85,13 +105,13 @@ function buildFromEnv() {
   }
 
   const preferred = String(
-    process.env.AI_PRIMARY_PROVIDER || "deepseek"
+    process.env.AI_PRIMARY_PROVIDER || "kimi"
   ).toLowerCase();
   let primaryProviderId =
     providers.find((p) => p.id === preferred)?.id ||
     providers.find((p) => p.apiKey)?.id ||
     providers[0]?.id ||
-    "deepseek";
+    "kimi";
 
   return {
     primaryProviderId,

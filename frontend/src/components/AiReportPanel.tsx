@@ -171,7 +171,7 @@ export default function AiReportPanel({
       </div>
 
       <p className="text-sm text-zinc-300 font-sans leading-relaxed">
-        {analysis.summary}
+        {analysis.executive_summary || analysis.summary}
       </p>
 
       {/* Quality breakdown */}
@@ -186,16 +186,22 @@ export default function AiReportPanel({
             color="#f87171"
           />
           <MetricBar
-            label="Architecture"
-            value={analysis.architecture_score ?? 0}
+            label="GitHub Health"
+            value={analysis.github_health_score ?? analysis.architecture_score ?? 0}
             color="#DEFF3B"
             delay={0.05}
           />
           <MetricBar
-            label="Test Coverage"
+            label="Testing"
             value={analysis.test_coverage_score ?? 0}
             color="#00E5FF"
             delay={0.1}
+          />
+          <MetricBar
+            label="Innovation"
+            value={analysis.innovation_score ?? 0}
+            color="#a3e635"
+            delay={0.15}
           />
         </div>
         <div className="panel-static p-4 space-y-3">
@@ -221,6 +227,12 @@ export default function AiReportPanel({
             color="#a3e635"
             delay={0.1}
           />
+          <MetricBar
+            label="Code Quality"
+            value={analysis.code_quality_score ?? 0}
+            color="#DEFF3B"
+            delay={0.15}
+          />
         </div>
       </div>
 
@@ -233,16 +245,60 @@ export default function AiReportPanel({
           tone="warn"
         />
         <ListBlock
-          title="Fraud Signals"
-          items={analysis.fraud_signals}
+          title="Security Findings"
+          items={analysis.security_findings || analysis.fraud_signals}
           tone="bad"
         />
         <ListBlock
-          title="Suggestions"
-          items={analysis.suggestions}
+          title="Recommendations"
+          items={analysis.recommendations || analysis.suggestions}
           tone="neutral"
         />
       </div>
+
+      {(analysis.criteria_checklist?.length || 0) > 0 && (
+        <div className="panel-static p-4 space-y-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+            Criteria checklist
+          </p>
+          <ul className="space-y-2">
+            {analysis.criteria_checklist!.map((row, i) => {
+              const status = String(
+                row.status || (row.met ? "PASS" : "FAIL")
+              ).toUpperCase();
+              const tone =
+                status === "PASS"
+                  ? "text-crucible-cyan"
+                  : status === "PARTIAL"
+                    ? "text-crucible-gold"
+                    : status === "NOT_VERIFIED"
+                      ? "text-zinc-400"
+                      : "text-crucible-red";
+              const detail = row.reason || row.notes;
+              return (
+                <li
+                  key={`${row.criterion}-${i}`}
+                  className="text-[11px] border border-crucible-border bg-black/30 px-3 py-2"
+                >
+                  <div className="flex items-start gap-2">
+                    <span
+                      className={`font-bold uppercase tracking-widest text-[9px] shrink-0 ${tone}`}
+                    >
+                      {status.replace("_", " ")}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-zinc-200 font-sans">{row.criterion}</p>
+                      {detail ? (
+                        <p className="text-zinc-500 font-sans mt-1">{detail}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <button
         type="button"
@@ -263,7 +319,9 @@ export default function AiReportPanel({
             className="overflow-hidden"
           >
             <div className="text-[12px] text-zinc-400 font-sans leading-relaxed border border-crucible-border/60 rounded-lg p-4 bg-black/30 whitespace-pre-wrap">
-              {analysis.reasoning ||
+              {analysis.reviewer_notes ||
+                analysis.reasoning ||
+                analysis.executive_summary ||
                 analysis.summary ||
                 "No detailed reasoning stored."}
             </div>

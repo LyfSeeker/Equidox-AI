@@ -242,7 +242,6 @@ router.post("/submit", async (req, res, next) => {
       demoUrl,
       docsUrl,
       notes,
-      commitSha,
       builderAddress,
       onChainGrantId,
       onChainMilestoneId,
@@ -255,11 +254,10 @@ router.post("/submit", async (req, res, next) => {
     if (!m) return res.status(404).json({ error: "Milestone not found" });
 
     const evidence = {
-      repoUrl,
-      demoUrl,
-      docsUrl,
+      repoUrl: repoUrl || "",
+      demoUrl: demoUrl || "",
+      docsUrl: docsUrl || "",
       notes: notes || null,
-      commitSha: commitSha || null,
       milestoneTitle: m.title,
       submittedAt: new Date().toISOString(),
     };
@@ -371,6 +369,12 @@ router.post("/verify", async (req, res, next) => {
     );
     m = synced.db;
 
+    const grantRes = await query(
+      `SELECT id, title, description FROM grants WHERE id = $1`,
+      [m.grant_id]
+    );
+    const grant = grantRes.rows[0] || null;
+
     const analysis = await analyzeMilestone({
       repoUrl,
       demoUrl,
@@ -381,9 +385,17 @@ router.post("/verify", async (req, res, next) => {
       milestone: {
         id: m.id,
         title: m.title,
-        description: m.description,
+        acceptanceCriteria: m.description || "",
+        description: m.description || "",
         amount_stroops: m.amount_stroops,
         status: m.status,
+        grant: grant
+          ? {
+              id: grant.id,
+              title: grant.title,
+              description: grant.description,
+            }
+          : null,
       },
     });
 

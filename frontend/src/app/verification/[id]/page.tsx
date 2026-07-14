@@ -31,6 +31,7 @@ import AiCopilot from "@/components/AiCopilot";
 import PageHeader from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import BrandIcon from "@/components/BrandIcon";
 
 export default function VerificationView() {
   const params = useParams();
@@ -42,13 +43,10 @@ export default function VerificationView() {
   const [grant, setGrant] = useState<Grant | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [repoUrl, setRepoUrl] = useState(
-    "https://github.com/stellar/soroban-examples"
-  );
+  const [repoUrl, setRepoUrl] = useState("");
   const [demoUrl, setDemoUrl] = useState("");
   const [docsUrl, setDocsUrl] = useState("");
   const [notes, setNotes] = useState("");
-  const [commitSha, setCommitSha] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [verificationHash, setVerificationHash] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -74,19 +72,17 @@ export default function VerificationView() {
     if (!m) {
       setAnalysis(null);
       setVerificationHash(null);
-      setRepoUrl("https://github.com/stellar/soroban-examples");
+      setRepoUrl("");
       setDemoUrl("");
       setDocsUrl("");
       setNotes("");
-      setCommitSha("");
       return;
     }
     const ev = m.evidence_json;
-    setRepoUrl(ev?.repoUrl || "https://github.com/stellar/soroban-examples");
+    setRepoUrl(ev?.repoUrl || "");
     setDemoUrl(ev?.demoUrl || "");
     setDocsUrl(ev?.docsUrl || "");
     setNotes(ev?.notes || "");
-    setCommitSha(ev?.commitSha || "");
     setVerificationHash(m.verification_hash || null);
     setAnalysis(analysisFromMilestoneReport(m.latest_report));
   }
@@ -278,13 +274,18 @@ export default function VerificationView() {
       }
       if (!repoUrl.trim()) throw new Error("GitHub repo URL is required");
 
+      const evidencePayload = {
+        repoUrl: repoUrl.trim(),
+        demoUrl: demoUrl.trim(),
+        docsUrl: docsUrl.trim(),
+        notes: notes.trim() || null,
+        milestoneTitle: selected.title,
+        submittedAt: new Date().toISOString(),
+      };
+
       const built = await api.submitMilestone({
         milestoneId: selected.id,
-        repoUrl,
-        demoUrl,
-        docsUrl,
-        notes,
-        commitSha,
+        ...evidencePayload,
         builderAddress: builder,
         onChainGrantId,
         onChainMilestoneId: selected.on_chain_milestone_id,
@@ -296,15 +297,7 @@ export default function VerificationView() {
         status: "submitted",
         evidenceHash: built.evidenceHash,
         submitTxHash: submitted.hash,
-        evidenceJson: {
-          repoUrl,
-          demoUrl,
-          docsUrl,
-          notes: notes || null,
-          commitSha: commitSha || null,
-          milestoneTitle: selected.title,
-          submittedAt: new Date().toISOString(),
-        },
+        evidenceJson: evidencePayload,
         evidenceIpfsCid: built.ipfsCid || null,
       });
       await api.indexEvent({
@@ -314,7 +307,10 @@ export default function VerificationView() {
           milestone_id: selected.on_chain_milestone_id,
           builder,
           evidence_hash: built.evidenceHash,
-          notes: notes || null,
+          repoUrl: evidencePayload.repoUrl,
+          demoUrl: evidencePayload.demoUrl,
+          docsUrl: evidencePayload.docsUrl,
+          notes: evidencePayload.notes,
         },
         txHash: submitted.hash,
       });
@@ -959,6 +955,7 @@ export default function VerificationView() {
         <div className="lg:col-span-2 space-y-6">
           <div className="panel-static p-5 md:p-6 space-y-4">
             <h3 className="section-title mb-2">
+              <BrandIcon name="milestone" className="w-4 h-4 text-crucible-gold" />
               Milestones
             </h3>
             {isAdmin && (milestones.length === 0 || showCreateForm) ? (
@@ -1090,7 +1087,7 @@ export default function VerificationView() {
               <span className="text-white">
                 {selected?.title || "the selected milestone"}
               </span>
-              . These are hashed and submitted on-chain.
+              . These are hashed and submitted on-chain for admin review.
             </p>
             <label className="block text-[10px] font-bold tracking-widest uppercase">
               GitHub Repo *
@@ -1123,15 +1120,6 @@ export default function VerificationView() {
               </label>
             </div>
             <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Commit / PR SHA
-              <input
-                value={commitSha}
-                onChange={(e) => setCommitSha(e.target.value)}
-                placeholder="abc123… or PR link"
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-              />
-            </label>
-            <label className="block text-[10px] font-bold tracking-widest uppercase">
               Builder notes / details
               <textarea
                 value={notes}
@@ -1160,76 +1148,98 @@ export default function VerificationView() {
               <Bot className="w-4 h-4 text-crucible-cyan" /> Review Documents
             </h3>
             <p className="text-[10px] text-zinc-500">
-              User submissions appear here. Review the details, run AI analysis,
-              then approve and release funds.
+              Exact fields submitted by the builder. Review them, run AI analysis,
+              then approve &amp; release or reject.
             </p>
             {selected?.evidence_json ? (
-              <div className="text-[10px] text-zinc-300 space-y-2 border border-crucible-cyan/40 p-4 bg-crucible-cyan/5">
-                <p className="text-crucible-cyan font-bold uppercase tracking-widest">
+              <div className="space-y-4 border border-crucible-cyan/40 p-4 bg-crucible-cyan/5">
+                <p className="text-crucible-cyan font-bold uppercase tracking-widest text-[10px]">
                   Received from user
                   {selected.evidence_json.submittedAt
                     ? ` · ${new Date(selected.evidence_json.submittedAt).toLocaleString()}`
                     : ""}
                 </p>
-                <p>
-                  <span className="text-zinc-500 uppercase tracking-widest">Repo · </span>
-                  {selected.evidence_json.repoUrl ? (
+
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                    GitHub Repo *
+                  </p>
+                  {repoUrl ? (
                     <a
-                      href={selected.evidence_json.repoUrl}
+                      href={repoUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-white hover:text-crucible-gold break-all"
+                      className="block text-xs text-white hover:text-crucible-gold break-all border border-crucible-border bg-black px-3 py-2"
                     >
-                      {selected.evidence_json.repoUrl}
+                      {repoUrl}
                     </a>
                   ) : (
-                    "—"
+                    <p className="text-xs text-zinc-600 border border-crucible-border bg-black px-3 py-2">
+                      —
+                    </p>
                   )}
-                </p>
-                <p>
-                  <span className="text-zinc-500 uppercase tracking-widest">Demo · </span>
-                  {selected.evidence_json.demoUrl ? (
-                    <a
-                      href={selected.evidence_json.demoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-white hover:text-crucible-gold break-all"
-                    >
-                      {selected.evidence_json.demoUrl}
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </p>
-                <p>
-                  <span className="text-zinc-500 uppercase tracking-widest">Docs · </span>
-                  {selected.evidence_json.docsUrl ? (
-                    <a
-                      href={selected.evidence_json.docsUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-white hover:text-crucible-gold break-all"
-                    >
-                      {selected.evidence_json.docsUrl}
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </p>
-                <p>
-                  <span className="text-zinc-500 uppercase tracking-widest">Commit · </span>
-                  <span className="text-white break-all">
-                    {selected.evidence_json.commitSha || "—"}
-                  </span>
-                </p>
-                <p>
-                  <span className="text-zinc-500 uppercase tracking-widest">Notes · </span>
-                  <span className="text-white whitespace-pre-wrap">
-                    {selected.evidence_json.notes || "—"}
-                  </span>
-                </p>
-                <p className="break-all text-zinc-500">
-                  Hash: {selected.evidence_hash || "—"}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                      Demo / Deployment URL
+                    </p>
+                    <p className="text-xs text-white break-all border border-crucible-border bg-black px-3 py-2">
+                      {demoUrl?.trim() ? (
+                        /^https?:\/\//i.test(demoUrl) ? (
+                          <a
+                            href={demoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:text-crucible-gold"
+                          >
+                            {demoUrl}
+                          </a>
+                        ) : (
+                          demoUrl
+                        )
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                      Docs URL
+                    </p>
+                    <p className="text-xs text-white break-all border border-crucible-border bg-black px-3 py-2">
+                      {docsUrl?.trim() ? (
+                        /^https?:\/\//i.test(docsUrl) ? (
+                          <a
+                            href={docsUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:text-crucible-gold"
+                          >
+                            {docsUrl}
+                          </a>
+                        ) : (
+                          docsUrl
+                        )
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                    Builder notes / details
+                  </p>
+                  <p className="text-xs text-white whitespace-pre-wrap border border-crucible-border bg-black px-3 py-2 min-h-24">
+                    {notes?.trim() ? notes : "—"}
+                  </p>
+                </div>
+
+                <p className="break-all text-[10px] text-zinc-500">
+                  Evidence hash: {selected.evidence_hash || "—"}
                   {selected.evidence_ipfs_cid
                     ? ` · IPFS ${selected.evidence_ipfs_cid}`
                     : ""}
@@ -1239,45 +1249,6 @@ export default function VerificationView() {
               <div className="text-[10px] text-zinc-500 border border-crucible-border p-3">
                 No user submission yet for this milestone. Status:{" "}
                 <span className="text-white uppercase">{selected?.status || "—"}</span>
-              </div>
-            )}
-            <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Repo to review
-              <input
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-                readOnly={Boolean(selected?.evidence_json?.repoUrl)}
-              />
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="block text-[10px] font-bold tracking-widest uppercase">
-                Demo URL
-                <input
-                  value={demoUrl}
-                  onChange={(e) => setDemoUrl(e.target.value)}
-                  className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-                  readOnly={Boolean(selected?.evidence_json)}
-                />
-              </label>
-              <label className="block text-[10px] font-bold tracking-widest uppercase">
-                Docs URL
-                <input
-                  value={docsUrl}
-                  onChange={(e) => setDocsUrl(e.target.value)}
-                  className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-                  readOnly={Boolean(selected?.evidence_json)}
-                />
-              </label>
-            </div>
-            {selected?.evidence_json?.notes && (
-              <div className="text-[10px]">
-                <p className="font-bold tracking-widest uppercase text-zinc-500 mb-1">
-                  Builder notes
-                </p>
-                <p className="text-zinc-300 whitespace-pre-wrap border border-crucible-border p-3 bg-black/30">
-                  {selected.evidence_json.notes}
-                </p>
               </div>
             )}
             <button

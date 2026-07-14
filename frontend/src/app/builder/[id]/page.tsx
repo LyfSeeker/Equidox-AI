@@ -2,26 +2,19 @@
 
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import {
-  CheckCircle,
-  Trophy,
-  DollarSign,
   Package,
   Globe,
   Shield,
   Calendar,
   Activity,
+  CheckCircle,
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useWallet } from "@/context/WalletContext";
 import { api } from "@/lib/api";
 import { shortAddress, stroopsToXlm } from "@/lib/config";
-import {
-  PassportMark,
-  SorobanMark,
-  ShipperMark,
-  FundedMark,
-  VerifiedMark,
-} from "@/components/PassportMarks";
+import { SorobanMark, VerifiedMark } from "@/components/PassportMarks";
+import BrandIcon from "@/components/BrandIcon";
 
 type PassportView = {
   builder: string;
@@ -50,12 +43,13 @@ type Mark = ComponentType<SVGProps<SVGSVGElement>>;
 const ON_CHAIN_BADGES: {
   label: string;
   detail: string;
-  Mark: Mark;
   tone: "gold" | "cyan";
+  Mark?: Mark;
+  brand?: "passport" | "escrow" | "milestone" | "builder";
 }[] = [
   { label: "SOROBAN", detail: "Builder", Mark: SorobanMark, tone: "cyan" },
-  { label: "SHIPPER", detail: "Milestones", Mark: ShipperMark, tone: "gold" },
-  { label: "FUNDED", detail: "Escrow", Mark: FundedMark, tone: "gold" },
+  { label: "SHIPPER", detail: "Milestones", brand: "milestone", tone: "gold" },
+  { label: "FUNDED", detail: "Escrow", brand: "escrow", tone: "cyan" },
   { label: "VERIFIED", detail: "AI Hash", Mark: VerifiedMark, tone: "cyan" },
 ];
 
@@ -122,7 +116,11 @@ export default function BuilderPassport() {
             <span className="pointer-events-none absolute right-0 top-0 h-2.5 w-2.5 border-r border-t border-crucible-gold/70" />
             <span className="pointer-events-none absolute bottom-0 left-0 h-2.5 w-2.5 border-b border-l border-crucible-gold/70" />
             <span className="pointer-events-none absolute bottom-0 right-0 h-2.5 w-2.5 border-b border-r border-crucible-gold/70" />
-            <PassportMark className="w-12 h-12 md:w-14 md:h-14 text-crucible-gold" />
+            <BrandIcon
+              name="passport"
+              title="Builder passport"
+              className="w-12 h-12 md:w-14 md:h-14 text-crucible-gold"
+            />
           </div>
           <div>
             <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -180,9 +178,10 @@ export default function BuilderPassport() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="panel-static p-6 col-span-1 md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="flex flex-col">
-            <CheckCircle
-              className="w-5 h-5 text-crucible-cyan mb-3"
-              strokeWidth={1.75}
+            <BrandIcon
+              name="milestone"
+              className="w-5 h-5 text-crucible-gold mb-3"
+              title="Milestones"
             />
             <p className="text-2xl font-bold text-white mb-1 tabular-nums">
               {passport?.completed_milestones ?? 0}
@@ -192,9 +191,10 @@ export default function BuilderPassport() {
             </p>
           </div>
           <div className="flex flex-col">
-            <DollarSign
-              className="w-5 h-5 text-crucible-gold mb-3"
-              strokeWidth={1.75}
+            <BrandIcon
+              name="escrow"
+              className="w-5 h-5 text-crucible-cyan mb-3"
+              title="Escrow funded"
             />
             <p className="text-2xl font-bold text-white mb-1 tabular-nums">
               {stroopsToXlm(passport?.total_funds_received)} XLM
@@ -204,9 +204,10 @@ export default function BuilderPassport() {
             </p>
           </div>
           <div className="flex flex-col">
-            <Trophy
+            <BrandIcon
+              name="builder"
               className="w-5 h-5 text-crucible-gold mb-3"
-              strokeWidth={1.75}
+              title="Grants"
             />
             <p className="text-2xl font-bold text-white mb-1 tabular-nums">
               {passport?.completed_grants ?? 0}
@@ -354,7 +355,11 @@ export default function BuilderPassport() {
                   <div
                     className={`mb-3 flex h-12 w-12 items-center justify-center border bg-black/40 ${tone}`}
                   >
-                    <Icon className="h-7 w-7" />
+                    {badge.brand ? (
+                      <BrandIcon name={badge.brand} className="h-7 w-7" />
+                    ) : Icon ? (
+                      <Icon className="h-7 w-7" />
+                    ) : null}
                   </div>
                   <p className="font-bold text-[10px] text-white tracking-[0.18em]">
                     {badge.label}

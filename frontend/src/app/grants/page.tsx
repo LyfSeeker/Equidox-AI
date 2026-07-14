@@ -7,9 +7,9 @@ import {
   ArrowRight,
   Zap,
   Target,
-  Plus,
-  Wallet,
   X,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { api, type Grant } from "@/lib/api";
@@ -21,6 +21,7 @@ import {
   stroopsToXlm,
   explorerTxUrl,
 } from "@/lib/config";
+import BrandIcon from "@/components/BrandIcon";
 
 function parseReturnU64(value: unknown): number | null {
   if (value == null) return null;
@@ -32,6 +33,26 @@ function parseReturnU64(value: unknown): number | null {
 
 function parseReturnU32(value: unknown): number | null {
   return parseReturnU64(value);
+}
+
+type DraftMilestone = {
+  key: string;
+  title: string;
+  description: string;
+  amountXlm: string;
+  deadline: string;
+};
+
+function newDraftMilestone(partial?: Partial<DraftMilestone>): DraftMilestone {
+  return {
+    key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    title: partial?.title || "Core deliverable",
+    description:
+      partial?.description ||
+      "Acceptance criteria: what must be delivered and how it will be verified.",
+    amountXlm: partial?.amountXlm || "2.5",
+    deadline: partial?.deadline || "",
+  };
 }
 
 export default function GrantMatching() {
@@ -50,7 +71,20 @@ export default function GrantMatching() {
   );
   const [builderAddress, setBuilderAddress] = useState("");
   const [reviewerAddress, setReviewerAddress] = useState("");
-  const [budgetXlm, setBudgetXlm] = useState("10");
+  const [milestonesDraft, setMilestonesDraft] = useState<DraftMilestone[]>([
+    newDraftMilestone({
+      title: "Core Smart Contracts",
+      description:
+        "Ship and document Soroban grant manager + passport. Acceptance: contracts deployable on testnet, README with build steps, and at least one verified invoke.",
+      amountXlm: "5",
+    }),
+    newDraftMilestone({
+      title: "AI Verification Flow",
+      description:
+        "Working submit → AI analyze → approve/release path. Acceptance: builder can submit evidence; admin can refresh AI report against this criterion.",
+      amountXlm: "5",
+    }),
+  ]);
 
   const [activeGrant, setActiveGrant] = useState<Grant | null>(null);
   const [escrowOpen, setEscrowOpen] = useState(false);
@@ -66,6 +100,12 @@ export default function GrantMatching() {
   const [msAmount, setMsAmount] = useState("2.5");
   const [msDeadline, setMsDeadline] = useState("");
   const [msBusy, setMsBusy] = useState(false);
+
+  const budgetFromMilestones = milestonesDraft.reduce((sum, m) => {
+    const n = Number(m.amountXlm);
+    return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+  }, 0);
+  const budgetXlm = budgetFromMilestones > 0 ? String(budgetFromMilestones) : "0";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,17 +160,55 @@ export default function GrantMatching() {
         setError("Builder and reviewer addresses are required.");
         return;
       }
+      if (milestonesDraft.length === 0) {
+        setError("Add at least one milestone — AI uses milestone criteria for review.");
+        return;
+      }
 
-      const totalBudgetStroops = Math.round(Number(budgetXlm) * 10_000_000);
-      if (!Number.isFinite(totalBudgetStroops) || totalBudgetStroops <= 0) {
-        setError("Enter a valid XLM budget.");
+      const parsedMilestones = milestonesDraft.map((m, idx) => {
+        const amountStroops = Math.round(Number(m.amountXlm) * 10_000_000);
+        if (!m.title.trim()) {
+          throw new Error(`Milestone ${idx + 1}: title is required`);
+        }
+        if (!m.description.trim()) {
+          throw new Error(
+            `Milestone ${idx + 1}: acceptance criteria (description) is required`
+          );
+        }
+        if (!Number.isFinite(amountStroops) || amountStroops <= 0) {
+          throw new Error(`Milestone ${idx + 1}: enter a valid payout in XLM`);
+        }
+        return {
+          title: m.title.trim(),
+          description: m.description.trim(),
+          amountStroops,
+          amountXlm: Number(m.amountXlm),
+          deadline: m.deadline || null,
+        };
+      });
+
+      const totalBudgetStroops = parsedMilestones.reduce(
+        (s, m) => s + m.amountStroops,
+        0
+      );
+      if (totalBudgetStroops <= 0) {
+        setError("Milestone payouts must sum to a positive budget.");
         return;
       }
 
       setSubmitting(true);
       await ensureFunded(providerAddress);
 
-      const meta = await api.uploadMetadata({ title, description });
+      const meta = await api.uploadMetadata({
+        title,
+        description,
+        milestones: parsedMilestones.map((m) => ({
+          title: m.title,
+          description: m.description,
+          amountXlm: m.amountXlm,
+          deadline: m.deadline,
+        })),
+      });
       const unsigned = await api.buildCreateGrant({
         sourcePublicKey: providerAddress,
         providerAddress,
@@ -158,10 +236,9 @@ export default function GrantMatching() {
       });
 
       if (onChainGrantId == null) {
-        // Fallback: leave null but store tx; indexer / manual patch may fill
         toast.info(
           "Grant created",
-          "On-chain ID pending from return value — check grant detail after refresh"
+          "On-chain ID pending — milestones could not be attached yet. Refresh and add them from Manage Escrow."
         );
       } else {
         await api.indexEvent({
@@ -172,15 +249,61 @@ export default function GrantMatching() {
             builder: builderAddress,
             reviewer: reviewerAddress,
             total_budget: totalBudgetStroops,
+            milestone_count: parsedMilestones.length,
           },
           txHash: submitted.hash,
         });
+
+        // Attach each milestone on-chain (criteria stored in DB for AI review)
+        for (let i = 0; i < parsedMilestones.length; i++) {
+          const ms = parsedMilestones[i];
+          toast.info(
+            `Confirm add_milestone ${i + 1}/${parsedMilestones.length}`,
+            ms.title
+          );
+          const msUnsigned = await api.buildAddMilestone({
+            sourcePublicKey: providerAddress,
+            providerAddress,
+            onChainGrantId,
+            amountStroops: ms.amountStroops,
+          });
+          const msSubmitted = await signAndSubmit(msUnsigned);
+          const onChainMilestoneId =
+            parseReturnU32(msSubmitted.returnValue) ?? 0;
+
+          await api.createMilestone({
+            grantId: record.id,
+            title: ms.title,
+            description: ms.description,
+            amountStroops: ms.amountStroops,
+            onChainMilestoneId,
+            deadline: ms.deadline,
+            txHash: msSubmitted.hash,
+            status: "pending",
+          });
+
+          await api.indexEvent({
+            eventName: "MilestoneAdded",
+            payload: {
+              grant_id: onChainGrantId,
+              milestone_id: onChainMilestoneId,
+              amount: ms.amountStroops,
+              title: ms.title,
+              description: ms.description,
+            },
+            txHash: msSubmitted.hash,
+          });
+        }
       }
 
-      setMessage(`Grant #${record.id} created. Tx: ${submitted.hash}`);
-      toast.success("Grant created on-chain", `DB #${record.id}`);
+      setMessage(
+        `Grant #${record.id} created with ${parsedMilestones.length} milestone(s). Tx: ${submitted.hash}`
+      );
+      toast.success(
+        "Grant + milestones on-chain",
+        `${parsedMilestones.length} criteria ready for AI review`
+      );
       await load();
-      // Open escrow manager so deposit is the next obvious step
       await openEscrowManager(record);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Grant creation failed";
@@ -404,7 +527,7 @@ export default function GrantMatching() {
         </div>
         <p className="page-desc !mt-1">
           {isAdmin
-            ? "Create grants, deposit escrow, set milestones — then review submissions and release payouts."
+            ? "Create the grant on-chain with milestones as payouts + AI acceptance criteria, deposit escrow, then review submissions."
             : "Browse grants and open one to submit your delivery documents for review."}
         </p>
       </div>
@@ -464,18 +587,137 @@ export default function GrantMatching() {
                 min="0.1"
                 step="0.1"
                 value={budgetXlm}
-                onChange={(e) => setBudgetXlm(e.target.value)}
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-                required
+                readOnly
+                className="mt-2 w-full bg-black/60 border border-crucible-border px-3 py-2 text-xs text-crucible-gold tabular-nums"
               />
+              <span className="mt-1 block text-[9px] text-zinc-600 normal-case tracking-normal font-sans">
+                Auto-sum of milestone payouts (on-chain total budget).
+              </span>
             </label>
+
+            <div className="space-y-3 border border-crucible-border bg-black/30 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-[10px] font-bold uppercase tracking-widest text-white">
+                  Milestones / AI criteria
+                </h4>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMilestonesDraft((prev) => [...prev, newDraftMilestone()])
+                  }
+                  className="text-[9px] uppercase tracking-widest text-crucible-gold inline-flex items-center gap-1 hover:text-white"
+                >
+                  <Plus className="w-3 h-3" /> Add milestone
+                </button>
+              </div>
+              <p className="text-[9px] text-zinc-500 font-sans normal-case tracking-normal">
+                Each milestone payout is created on-chain. Description =
+                acceptance criteria the AI scores against.
+              </p>
+              {milestonesDraft.map((ms, idx) => (
+                <div
+                  key={ms.key}
+                  className="border border-crucible-border bg-crucible-bg p-3 space-y-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                      Milestone {idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={milestonesDraft.length <= 1}
+                      onClick={() =>
+                        setMilestonesDraft((prev) =>
+                          prev.filter((row) => row.key !== ms.key)
+                        )
+                      }
+                      className="text-zinc-600 hover:text-crucible-red disabled:opacity-30"
+                      aria-label="Remove milestone"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <input
+                    value={ms.title}
+                    onChange={(e) =>
+                      setMilestonesDraft((prev) =>
+                        prev.map((row) =>
+                          row.key === ms.key
+                            ? { ...row, title: e.target.value }
+                            : row
+                        )
+                      )
+                    }
+                    placeholder="Title"
+                    className="w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
+                    required
+                  />
+                  <textarea
+                    value={ms.description}
+                    onChange={(e) =>
+                      setMilestonesDraft((prev) =>
+                        prev.map((row) =>
+                          row.key === ms.key
+                            ? { ...row, description: e.target.value }
+                            : row
+                        )
+                      )
+                    }
+                    placeholder="Acceptance criteria for AI + reviewer…"
+                    className="w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white min-h-16"
+                    required
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                      Payout XLM
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={ms.amountXlm}
+                        onChange={(e) =>
+                          setMilestonesDraft((prev) =>
+                            prev.map((row) =>
+                              row.key === ms.key
+                                ? { ...row, amountXlm: e.target.value }
+                                : row
+                            )
+                          )
+                        }
+                        className="mt-1 w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
+                        required
+                      />
+                    </label>
+                    <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                      Deadline
+                      <input
+                        type="date"
+                        value={ms.deadline}
+                        onChange={(e) =>
+                          setMilestonesDraft((prev) =>
+                            prev.map((row) =>
+                              row.key === ms.key
+                                ? { ...row, deadline: e.target.value }
+                                : row
+                            )
+                          )
+                        }
+                        className="mt-1 w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
+                      />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <button
               type="submit"
               disabled={submitting}
               className="w-full py-3 bg-crucible-gold text-black text-xs font-bold uppercase tracking-widest disabled:opacity-60"
             >
-              {submitting ? "Signing with Freighter..." : "Create On-Chain Grant"}
+              {submitting
+                ? "Confirm Freighter prompts…"
+                : "Create Grant + Milestones On-Chain"}
             </button>
 
             {message && (
@@ -572,7 +814,7 @@ export default function GrantMatching() {
                           : "Cancelled or missing on-chain grant ID"
                       }
                     >
-                      <Wallet className="w-3.5 h-3.5" />
+                      <BrandIcon name="escrow" className="w-3.5 h-3.5" />
                       Manage Escrow
                     </button>
                     )}
@@ -593,20 +835,20 @@ export default function GrantMatching() {
       </div>
 
       {isAdmin && escrowOpen && activeGrant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="panel-border bg-crucible-surface w-full max-w-md p-6 space-y-4 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
+          <div className="panel-static bg-crucible-surface w-full max-w-lg my-auto p-6 md:p-8 space-y-4 relative max-h-[min(90vh,720px)] overflow-y-auto">
             <button
               type="button"
               onClick={() => {
                 setEscrowOpen(false);
                 setEscrowError(null);
               }}
-              className="absolute top-4 right-4 text-zinc-500 hover:text-white"
+              className="absolute top-4 right-4 text-zinc-500 hover:text-white z-10"
             >
               <X className="w-4 h-4" />
             </button>
-            <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-crucible-cyan" /> Manage Escrow
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2 pr-8">
+              <BrandIcon name="escrow" className="w-4 h-4 text-crucible-cyan" /> Manage Escrow
             </h3>
             <p className="text-[10px] text-zinc-500">
               Grant #{activeGrant.id} · On-chain #
@@ -674,7 +916,7 @@ export default function GrantMatching() {
               }}
               className="w-full py-3 bg-white/5 border border-crucible-border text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2"
             >
-              <Plus className="w-3.5 h-3.5" /> Create Milestone
+              <BrandIcon name="milestone" className="w-3.5 h-3.5" /> Create Milestone
             </button>
             <Link
               href={`/verification/${activeGrant.id}`}
@@ -692,67 +934,71 @@ export default function GrantMatching() {
       )}
 
       {isAdmin && milestoneOpen && activeGrant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
           <form
             onSubmit={onAddMilestone}
-            className="panel-border bg-crucible-surface w-full max-w-md p-6 space-y-4 relative"
+            className="panel-static bg-crucible-surface w-full max-w-xl my-auto p-6 md:p-8 space-y-4 relative max-h-[min(90vh,760px)] overflow-y-auto"
           >
             <button
               type="button"
               onClick={() => setMilestoneOpen(false)}
-              className="absolute top-4 right-4 text-zinc-500 hover:text-white"
+              className="absolute top-4 right-4 text-zinc-500 hover:text-white z-10"
             >
               <X className="w-4 h-4" />
             </button>
-            <h3 className="text-sm font-bold text-white uppercase tracking-widest">
+            <h3 className="text-sm md:text-base font-bold text-white uppercase tracking-widest flex items-center gap-2 pr-8">
+              <BrandIcon name="milestone" className="w-4 h-4 text-crucible-gold shrink-0" />
               Create Milestone
             </h3>
-            <p className="text-[10px] text-zinc-500">
-              Title/description stored in Postgres. Amount goes on-chain via{" "}
-              <code>add_milestone</code>.
+            <p className="text-[10px] text-zinc-500 leading-relaxed">
+              Acceptance criteria are stored for AI review. Payout amount goes
+              on-chain via <code>add_milestone</code>.
             </p>
             <label className="block text-[10px] font-bold tracking-widest uppercase">
               Title
               <input
                 value={msTitle}
                 onChange={(e) => setMsTitle(e.target.value)}
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
+                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2.5 text-xs text-white"
                 required
               />
             </label>
             <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Description
+              Acceptance criteria (AI)
               <textarea
                 value={msDescription}
                 onChange={(e) => setMsDescription(e.target.value)}
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white min-h-16"
-              />
-            </label>
-            <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Payout Amount (XLM)
-              <input
-                type="number"
-                min="0.1"
-                step="0.1"
-                value={msAmount}
-                onChange={(e) => setMsAmount(e.target.value)}
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
+                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2.5 text-xs text-white min-h-28 resize-y"
                 required
               />
             </label>
-            <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Deadline
-              <input
-                type="date"
-                value={msDeadline}
-                onChange={(e) => setMsDeadline(e.target.value)}
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-              />
-            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="block text-[10px] font-bold tracking-widest uppercase">
+                Payout Amount (XLM)
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={msAmount}
+                  onChange={(e) => setMsAmount(e.target.value)}
+                  className="mt-2 w-full bg-black border border-crucible-border px-3 py-2.5 text-xs text-white"
+                  required
+                />
+              </label>
+              <label className="block text-[10px] font-bold tracking-widest uppercase">
+                Deadline
+                <input
+                  type="date"
+                  value={msDeadline}
+                  onChange={(e) => setMsDeadline(e.target.value)}
+                  className="mt-2 w-full bg-black border border-crucible-border px-3 py-2.5 text-xs text-white"
+                />
+              </label>
+            </div>
             <button
               type="submit"
               disabled={msBusy}
-              className="w-full py-3 bg-crucible-gold text-black text-xs font-bold uppercase tracking-widest disabled:opacity-60"
+              className="w-full py-3.5 bg-crucible-gold text-black text-xs font-bold uppercase tracking-widest disabled:opacity-60"
             >
               {msBusy ? "Confirm in Freighter..." : "Add On-Chain Milestone"}
             </button>
