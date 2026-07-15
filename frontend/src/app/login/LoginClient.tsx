@@ -4,31 +4,20 @@ import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import LoginPanel from "@/components/LoginPanel";
 import { useAuth } from "@/context/AuthContext";
-
-function safeNext(raw: string | null): string {
-  if (
-    !raw ||
-    !raw.startsWith("/") ||
-    raw.startsWith("//") ||
-    raw.startsWith("/login") ||
-    raw.startsWith("/admin")
-  ) {
-    return "/dashboard";
-  }
-  return raw;
-}
+import { isAdminUser, loadTokens, parseJwtPayload } from "@/lib/keycloak";
+import { resolvePostLoginPath } from "@/lib/authRedirect";
 
 export default function LoginClient() {
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, isAuthenticated, loading, isAdmin } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = safeNext(searchParams.get("next"));
+  const nextParam = searchParams.get("next");
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.replace(nextPath);
+      router.replace(resolvePostLoginPath(nextParam, isAdmin));
     }
-  }, [loading, isAuthenticated, router, nextPath]);
+  }, [loading, isAuthenticated, isAdmin, router, nextParam]);
 
   if (loading || isAuthenticated) {
     return (
@@ -41,10 +30,11 @@ export default function LoginClient() {
   return (
     <LoginPanel
       usernamePlaceholder="demo"
-      footerHint="Demo · demo / demo · Keycloak realm equidox"
       onSubmit={async (username, password) => {
         await login(username, password);
-        router.replace(nextPath);
+        const tokens = loadTokens();
+        const payload = tokens ? parseJwtPayload(tokens.accessToken) : null;
+        router.replace(resolvePostLoginPath(nextParam, isAdminUser(payload)));
       }}
     />
   );

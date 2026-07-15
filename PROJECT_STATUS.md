@@ -1,11 +1,11 @@
 # Equidox AI — Project Status & Progress Report
 
-**Last updated:** 2026-07-11 (hackathon MVP complete)  
-**Repo:** `hello-world` (Equidox AI / Equidox Trust Layer)  
-**Branch:** `feature/soroban-smart-contracts`  
+**Last updated:** 2026-07-15  
+**Repo:** [LyfSeeker/Equidox-AI](https://github.com/LyfSeeker/Equidox-AI)  
+**Branch:** `feature/equidox-ai-kimi-dashboard` (merged to `main` via PR #5; local continues with auth + HOME)  
 **Goal:** AI-powered milestone verification and grant distribution on **Stellar / Soroban**, with on-chain escrow + Builder Passport reputation.
 
-**One-line status:** Full end-to-end grant lifecycle is wired in Docker + Freighter on Stellar Testnet — create → deposit → add milestone → submit → AI verify → approve → release → passport/dashboard update.
+**One-line status:** Production-shaped MVP on Docker + Freighter (Testnet): Keycloak sign-in by role → create grants with milestones/criteria → escrow → submit evidence → **Equidox AI v1.0** (Kimi primary) → human approve/release → passport + dashboard lifecycle.
 
 ---
 
@@ -16,10 +16,10 @@ Equidox is a trust layer for grants/hackathons:
 | Layer | Responsibility |
 |-------|----------------|
 | **On-chain (Soroban)** | Grants, milestones, XLM escrow, approve/reject/release, passport reputation |
-| **Off-chain (backend)** | AI analysis, GitHub evidence, metadata hashing, Freighter tx building, Postgres sync, event indexer |
-| **Frontend (Next.js)** | Dashboard, Freighter wallet, grant/escrow/milestone flows, verification, builder passport |
+| **Off-chain (backend)** | Equidox AI v1.0 analysis, GitHub evidence, metadata hashing, Freighter tx building, Postgres sync, event indexer |
+| **Frontend (Next.js)** | Keycloak gate, role homes, dashboard lifecycle, grants, review/submit, verification, builder passport |
 
-AI never moves money by itself — it only produces a **verification hash** anchored on-chain. A human **reviewer** approves and releases funds.
+AI never moves money — it only produces an advisory report + verification hash. A human **reviewer** releases funds.
 
 ---
 
@@ -36,8 +36,10 @@ AI never moves money by itself — it only produces a **verification hash** anch
 - **Framework:** Express
 - **DB:** PostgreSQL 16 (`pg`)
 - **Stellar:** `@stellar/stellar-sdk`
-- **Other:** `cors`, `dotenv`, `uuid`
-- **AI:** OpenAI `gpt-4o-mini` if `OPENAI_API_KEY` is set; otherwise enriched mock
+- **AI:** OpenAI-compatible client in `backend/src/services/llm.js`
+  - **Primary:** Kimi / Moonshot (`kimi-k2.6`) via `AI_*` env
+  - **Fallbacks:** Gemini, DeepSeek, OpenAI when keyed
+  - **Prompt:** Equidox AI v1.0 (`equidox-ai-v1.0`) — criteria-first checklist scoring
 - **IPFS:** Optional via `IPFS_API_URL`; otherwise local SHA-256 hash of JSON
 - **Indexer:** Background Soroban RPC event poller (`INDEXER_ENABLED=true`)
 
@@ -45,48 +47,67 @@ AI never moves money by itself — it only produces a **verification hash** anch
 - **Framework:** Next.js 16 (App Router) + React 19
 - **Styling:** Tailwind CSS 4 (“Crucible” dark industrial UI)
 - **Wallet:** Freighter (`@stellar/freighter-api`)
-- **Motion/icons:** `framer-motion`, `lucide-react`
-- **UX:** Toasts, skeletons, lifecycle timeline, explorer links
+- **Auth:** Keycloak realm `equidox` — `/` → `/login` → role home
+- **Motion/icons:** `framer-motion`, `lucide-react`, custom `BrandIcon` assets
 - **Docker:** `output: "standalone"`
 
 ### Infra
 - **Docker Compose:** `postgres` + `backend` + `frontend` + `keycloak` + `keycloak-db`
 - **Local URLs:**
-  - Frontend: http://localhost:3000 (Keycloak login gate → then Freighter)
+  - Frontend: http://localhost:3000 → sign-in first
   - Backend: http://localhost:4000 (`/api/health`)
-  - Keycloak: http://localhost:8180 (admin `admin` / `admin`; realm `equidox`; demo `demo` / `demo`; app admin `admin` / `admin`)
+  - Keycloak: http://localhost:8180
   - App Postgres: `localhost:5432` (`postgres` / `postgres` / `equidox`)
-  - Keycloak Postgres: `localhost:5433` (`keycloak` / `keycloak` / `keycloak`) — users, credentials, sessions
+  - Keycloak Postgres: `localhost:5433`
 
 ---
 
-## 3. Repository layout
+## 3. Auth & routing (current)
+
+| Step | Behavior |
+|------|----------|
+| Visit `/` | Redirect: signed-out → `/login`; signed-in → role home |
+| Login | Keycloak password grant (`/login` for all roles; `/admin` still works) |
+| **Admin** post-login | `/dashboard` |
+| **User** post-login | `/submit` |
+| `/home` | Marketing landing (sidebar **HOME**); no wallet required once signed in |
+| App pages | Require Freighter wallet after Keycloak |
+
+| Role | Username | Password |
+|------|----------|----------|
+| User | `demo` | `demo` |
+| Admin | `admin` | `admin` |
+
+---
+
+## 4. Repository layout
 
 ```
 contracts/
-  common/             # Shared types, errors, events (library, not deployed)
+  common/             # Shared types, errors, events
   grant-manager/      # Grants, milestones, XLM escrow, payouts
   builder-passport/   # On-chain builder reputation
-  hello-world/        # Tutorial leftover (not the product contract)
 backend/
   src/
-    routes/           # api, grants, milestones
-    services/         # ai, github, ipfs, stellar, indexer, poller
-    db/               # client + migrate
+    routes/           # api, grants, milestones, ai
+    services/         # llm (AI), ai façade, github, settings, stellar, indexer
+    db/
 frontend/
-  src/app/            # login, dashboard, grants, builder/[id], verification/[id]
-  src/components/     # Sidebar, Topbar, AuthGate, AppChrome, LifecycleTimeline
-  src/context/        # AuthContext, WalletContext, ToastContext
-  src/lib/            # api, freighter, keycloak, config
-keycloak/             # Realm import (equidox + demo user)
-scripts/              # deploy.ps1, initialize.ps1
+  src/app/            # /, /login, /home, /dashboard, /grants, /submit, /review,
+                      # /builder/[id], /verification/[id], /admin
+  src/components/     # Sidebar, Topbar, AuthGate, AiReportPanel, BrandIcon, …
+  src/lib/            # api, authRedirect, freighter, keycloak, config
+keycloak/
+scripts/
 docker-compose.yml
+ARCHITECTURE.md
 PROJECT_STATUS.md
+README.md
 ```
 
 ---
 
-## 4. Live Testnet contracts (Compose defaults)
+## 5. Live Testnet contracts (Compose defaults)
 
 | Contract | ID |
 |----------|-----|
@@ -94,76 +115,121 @@ PROJECT_STATUS.md
 | **Builder Passport** | `CCWQCRUXF2P56F6Z4RZZXPOOQITN55X3QYVXF626PBC4UXTVQRB3WWOL` |
 | **Native XLM SAC (Testnet)** | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` |
 
-**CLI identity used in development:**
-- `alice` → `GCFCVEY6YOO24HAI2JCX6BH2RDAJRMSQJODOGUY6H4NMNVQR3KYV446Z`
-
 ---
 
-## 5. Complete product lifecycle (implemented)
+## 6. Product lifecycle (implemented)
 
 ```
-Connect Wallet (+ Friendbot if unfunded)
-  → Create Grant (on-chain + DB sync of on_chain_grant_id / tx_hash)
-  → Deposit XLM (escrow UI: budget / escrow / remaining)
-  → Create Milestone (amount on-chain via add_milestone; title/desc/deadline in Postgres)
-  → Builder submits evidence (submit_milestone)
-  → AI analyzes GitHub / demo / docs
-  → Store verification hash on Stellar
-  → Reviewer approves
-  → Release funds
-  → Builder Passport updates
-  → Dashboard + event log refresh
+Sign in (Keycloak) → Connect Freighter
+  → Admin: Create Grant with milestone(s) + acceptance criteria
+       → create_grant + add_milestone(s) on-chain; criteria in Postgres
+  → Deposit XLM (escrow)
+  → (Optional) Create extra milestones via Manage Escrow modal
+  → Builder: Submit evidence (repo, demo, docs, notes)
+  → Admin: AI verify (Equidox AI v1.0 against acceptance criteria)
+  → Anchor verification hash
+  → Approve & Release  OR  Reject
+  → Passport update + dashboard timeline / events refresh
 ```
 
 ### Milestone state machine
 ```
-Pending → Submitted → UnderReview → Approved → Paid
-                 ↘ Rejected → (can resubmit)
+pending → submitted → under_review → approved → paid
+                ↘ rejected → (can resubmit)
 ```
 
 ---
 
-## 6. What works (MVP checklist)
+## 7. What works (MVP checklist)
 
-### On-chain (contracts)
+### On-chain
 | Feature | Status |
 |---------|--------|
 | `create_grant` / `deposit_funds` / `add_milestone` | Works |
 | `submit_milestone` / `store_verification_hash` | Works |
 | `approve_milestone` / `reject_milestone` / `release_funds` | Works |
-| Escrow + double-pay guard + passport update on release | Works |
-| Unit tests (~15/15) + prior CLI Testnet escrow proof | Works |
+| Escrow + double-pay guard + passport on release | Works |
+| Unit tests + Testnet deploy | Works |
 
 ### Backend
 | Feature | Status |
 |---------|--------|
-| Health, grants CRUD, metadata hash | Works |
-| Build create / deposit / add_milestone / submit / verify / approve+release txs | Works |
-| Submit signed XDR + parse return values | Works |
-| Auto PATCH sync: `on_chain_grant_id`, `on_chain_milestone_id`, tx hashes, status, escrow | Works |
-| Friendbot + account exists check | Works |
-| Live passport read from Soroban (`get_passport`) + DB fallback | Works |
-| AI scores (completion, confidence, risk, code, security, docs, deploy) | Works |
-| GitHub evidence (README, commits, tests, tree, languages) when token set | Works |
-| Soroban event poller + deduped `chain_events` | Works |
-| x402 premium gate + receipt table (graceful fallback if off) | Works |
-| Docker migrate-on-start + healthchecks | Works |
+| Health (+ AI provider readiness: kimi / gemini / deepseek / openai) | Works |
+| Grants CRUD, metadata hash, multi-milestone create | Works |
+| Tx builders + signed XDR submit + ID sync | Works |
+| Equidox AI v1.0 via `llm.js` (Kimi primary, provider failover) | Works |
+| Criteria checklist + weighted category scores in report | Works |
+| GitHub evidence pack | Works |
+| Soroban indexer + `chain_events` | Works |
+| x402 premium path (optional) | Works |
+| Docker migrate-on-start | Works |
 
 ### Frontend
 | Feature | Status |
 |---------|--------|
-| Freighter connect / disconnect / reconnect sign-in prompt | Works |
-| Fund Testnet Wallet (Friendbot) in Topbar | Works |
-| Grants: create → deposit panel → Create Milestone modal | Works |
-| Verification `/verification/[grantId]`: submit → AI → approve/release | Works |
-| Builder `/builder/[wallet]` (+ `/builder/me`) live passport | Works |
-| Dashboard: stats, escrow bars, timeline, events, builders | Works |
-| Toasts, skeletons, tx progress, explorer links | Works |
-| Dynamic sidebar builder link | Works |
+| Login-first `/` + role redirect | Works |
+| HOME landing at `/home` (sidebar) | Works |
+| Freighter connect / Friendbot | Works |
+| Grants: multi-milestone create, escrow modal, Create Milestone sizing | Works |
+| Dashboard: select grant → Activity Timeline updates | Works |
+| Review / Submit / Verification flows | Works |
+| AiReportPanel: PASS/FAIL/PARTIAL/NOT_VERIFIED checklist | Works |
+| Brand icons (passport / escrow / milestone / builder) | Works |
+| Notifications / Topbar updates | Works |
 
 ---
 
-## 7. API surface (key endpoints)
+## 8. AI verification (Equidox AI v2 pipeline)
+
+**Prompt version:** `equidox-ai-v2.0-pipeline`  
+**Package:** `backend/ai/` (prompts, skills, examples, pipeline, MCP adapters)  
+**Client:** `backend/src/services/llm.js` wires providers into `runReviewPipeline`
+
+Features:
+
+- Modular markdown prompts + per-technology skills (loaded only when detected)
+- Context builder (grant, criteria, GitHub, docs, passport hooks)
+- Zod schema validation + one repair retry + schema-safe fallback
+- Self-review pass (optional via `AI_SELF_REVIEW`)
+- Report fingerprint cache (`AI_CACHE_REPORTS`)
+- `AI_PIPELINE_MODE=compact|full`
+- MCP adapter stubs (GitHub / FS / Postgres / Browser / Git) with REST fallback
+
+Scores (weighted toward feature completion vs acceptance criteria) plus maintainability / architecture.
+
+| Category | Weight |
+|----------|--------|
+| Feature completion | 30% |
+| Code quality | 15% |
+| Architecture | 10% |
+| Security | 15% |
+| Documentation | 8% |
+| Testing | 8% |
+| Deployment | 4% |
+| GitHub health | 4% |
+| Innovation | 3% |
+| Maintainability | 3% |
+
+Also returns: `overallScore`, `trustScore`, `confidenceScore`, `riskScore`, `riskLevel`, `recommendation`, `criteriaChecklist`, technical/architecture/security/docs/testing/github narratives, strengths/weaknesses, recommendations.
+
+**Env (see `backend/.env.example`):**
+
+```
+AI_API_KEY=...
+AI_BASE_URL=https://api.moonshot.ai/v1
+AI_MODEL=kimi-k2.6
+AI_PROVIDER_ID=kimi
+AI_PROVIDER_NAME=Kimi
+AI_PRIMARY_PROVIDER=kimi
+AI_PIPELINE_MODE=compact
+AI_SELF_REVIEW=true
+AI_CACHE_REPORTS=true
+# Optional: GEMINI_*, DEEPSEEK_*, OPENAI_*, GITHUB_TOKEN
+```
+
+---
+
+## 9. API surface (key endpoints)
 
 ### Core
 - `GET /api/health`
@@ -171,145 +237,116 @@ Pending → Submitted → UnderReview → Approved → Paid
 - `GET /api/account/:address`
 - `POST /api/friendbot`
 - `GET /api/passport/:address`
-- `POST /api/x402/pay`
 
 ### Grants
 - `POST /api/grants/metadata`
-- `POST /api/grants` (accepts `onChainGrantId`, `txHash`)
-- `PATCH /api/grants/:id`
-- `GET /api/grants` / `GET /api/grants/:id` (includes live escrow when possible)
-- `POST /api/grants/build/create`
-- `POST /api/grants/build/deposit`
-- `POST /api/grants/submit`
+- `POST /api/grants` / `PATCH /api/grants/:id`
+- `GET /api/grants` / `GET /api/grants/:id`
+- `POST /api/grants/build/create` / `deposit` / `submit`
 
 ### Milestones
-- `POST /api/milestones/build/add` ← **add_milestone XDR**
+- `POST /api/milestones/build/add`
 - `POST /api/milestones` / `PATCH /api/milestones/:id`
-- `GET /api/milestones/grant/:grantId` (includes latest AI report)
-- `POST /api/milestones/submit`
-- `POST /api/milestones/verify`
-- `POST /api/milestones/approve/build`
-- `POST /api/milestones/premium`
+- `GET /api/milestones/grant/:grantId`
+- `POST /api/milestones/submit` / `verify` / `approve/build` / `premium`
+
+### AI
+- `POST /api/ai/analyze` (sync or async job)
+- `POST /api/ai/chat` (reviewer copilot)
 
 ---
 
-## 8. Database schema (current)
+## 10. Database schema (current)
 
-**`grants`** — includes `on_chain_grant_id`, `escrowed_stroops`, `released_stroops`, `tx_hash`, status, parties, budget, metadata  
-
-**`milestones`** — includes `on_chain_milestone_id`, title, description, deadline, amounts, status, evidence/verification hashes, submit/verify/approve/release tx hashes  
-
-**`ai_reports`** — scores, summary, recommendation, `report_json`, ipfs hash, premium flag  
-
-**`chain_events`** — indexed events with dedupe on `(tx_hash, event_name)`  
-
-**`indexer_state`** — Soroban poller cursor  
-
-**`x402_receipts`** — premium payment proofs  
+**`grants`** — on-chain id, escrow/released, parties, budget, metadata, status  
+**`milestones`** — acceptance criteria in `description`, amounts, evidence hashes, status, tx hashes  
+**`ai_reports`** — scores, recommendation, `report_json`, provider/model/prompt_version, tokens, latency  
+**`chain_events`** / **`indexer_state`** / **`x402_receipts`**
 
 ---
 
-## 9. Indexed / handled events
-
-| Event | Handled |
-|-------|---------|
-| GrantCreated | Yes (+ DB sync) |
-| FundsDeposited | Yes (+ escrow update) |
-| MilestoneAdded | Yes |
-| MilestoneSubmitted | Yes |
-| AiVerificationAdded / VerificationStored | Yes |
-| MilestoneApproved / MilestoneRejected | Yes |
-| PaymentReleased | Yes |
-| PassportUpdated / ReputationUpdated | Yes (logged) |
-| GrantCancelled | Yes |
-
----
-
-## 10. Docker / run
+## 11. Docker / run
 
 ```powershell
 docker compose up --build
 ```
 
-| Service | Port | Notes |
-|---------|------|-------|
-| Frontend | 3000 | Healthy |
-| Backend | 4000 | Waits for Postgres, migrates, starts indexer |
-| Postgres | 5432 | Volume `equidox_pg_data` |
+| Service | Port |
+|---------|------|
+| Frontend | 3000 |
+| Backend | 4000 |
+| App Postgres | 5432 |
+| Keycloak | 8180 |
+| Keycloak Postgres | 5433 |
 
-**Optional `.env`**
-- `OPENAI_API_KEY`, `GITHUB_TOKEN`
-- `IPFS_API_URL` / `IPFS_GATEWAY`
-- `X402_ENABLED=true` for premium paywall
-- `INDEXER_ENABLED` / `INDEXER_POLL_MS`
-- `FRIENDBOT_URL`
-- Contract ID overrides if redeployed
+Inspect DB:
 
----
-
-## 11. Demo script (hackathon)
-
-1. Open http://localhost:3000 → Connect Freighter  
-2. If needed: **Fund Testnet Wallet**  
-3. **Grants** → Create On-Chain Grant (sign in Freighter)  
-4. **Deposit Funds** → confirm escrow stats  
-5. **Create Milestone** (title/desc/amount/deadline) → sign `add_milestone`  
-6. Open **verification/{grantId}** → Submit Evidence → Analyze & Anchor Hash  
-7. **Approve & Release Funds** (two Freighter confirms)  
-8. Check **Dashboard** events/timeline and **Builder Passport**  
+```powershell
+docker exec -it equidox-postgres psql -U postgres -d equidox
+```
 
 ---
 
-## 12. Progress phases
+## 12. Demo script
+
+1. Open http://localhost:3000 → sign in (`admin`/`admin` or `demo`/`demo`)  
+2. Connect Freighter (Testnet); fund if needed  
+3. **Admin:** Grants → create with milestones + criteria → deposit escrow  
+4. **User:** Submit → open grant → submit evidence  
+5. **Admin:** Review → AI verify → Approve & Release  
+6. Check Dashboard timelines (click grants) + Builder Passport + Event Log  
+
+---
+
+## 13. Progress phases
 
 ### Phase 1 — Contracts — done
 - [x] Grant Manager + Builder Passport + common lib  
-- [x] Tests, deploy/initialize scripts, Testnet deploy + CLI escrow proof  
+- [x] Tests, deploy scripts, Testnet deploy  
 
 ### Phase 2 — Backend — done
 - [x] Express + Postgres + Docker  
-- [x] Tx builders, AI, GitHub, IPFS-hash helpers  
-- [x] Friendbot, live passport, indexer, x402 receipts, ID sync  
+- [x] Tx builders, GitHub, IPFS-hash, indexer, x402  
+- [x] Equidox AI v1.0 + Kimi primary + provider failover (`llm.js`)  
 
 ### Phase 3 — Frontend MVP — done
 - [x] Freighter + full grant lifecycle UI  
-- [x] Deposit + on-chain milestones  
-- [x] Verification / dashboard / passport polish  
-- [x] Toasts, timeline, Friendbot, dynamic routes  
+- [x] Multi-milestone create + criteria-first review UI  
+- [x] Login-first auth + role homes + HOME landing  
+- [x] Dashboard grant selection → lifecycle timeline  
 
-### Still optional (post-hackathon)
+### Still optional (post-MVP)
 - [ ] Stricter Horizon verification for real x402 payments  
 - [ ] Stronger Soroban event topic parsing across RPC versions  
-- [ ] Fallback grant-id discovery if tx return value is missing  
-- [ ] Production IPFS pinning / pinning service  
-- [ ] Reject-milestone + cancel-grant UI buttons  
-- [ ] Commit/push remaining local changes if not on remote yet  
+- [ ] Production IPFS pinning service  
+- [ ] Persist AI provider secrets via vault / secret manager in deploy envs  
 
 ---
 
-## 13. Security / trust model
+## 14. Security / trust model
 
 - Escrow holds XLM until reviewer releases  
-- AI is advisory (hash only); cannot pay alone  
-- Roles: provider, builder, reviewer, operator  
+- AI is advisory only; cannot pay alone  
+- Roles: provider, builder, reviewer (on-chain) + Keycloak admin/user (app)  
 - Double-pay guard on milestones  
 - Users sign with Freighter; backend does not hold user keys for grant flows  
+- API keys only in `backend/.env` (gitignored), never committed  
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `Account not found` | Use **Fund Testnet Wallet** / `POST /api/friendbot` |
-| Freighter no popup after logout | App forces sign-in message after disconnect |
-| AI always mock | Set `OPENAI_API_KEY` and restart backend |
-| No on-chain milestone | Use **Create Milestone** on Grants (not DB-only) |
-| Empty event log | Indexer polls every ~15s; also indexed from UI after each tx |
-| Port 3000 busy | Stop local `npm run dev` or other process |
+| Lands on marketing instead of login | Hard-refresh; `/` should redirect to `/login` when signed out |
+| AI fails / mock-like | Set `AI_API_KEY` (Kimi) + `AI_PRIMARY_PROVIDER=kimi`; recreate backend |
+| `Account not found` | **Fund Testnet Wallet** / Friendbot |
+| HOME no highlight | Ensure URL is `/home` (not `/`) |
+| Empty event log | Indexer ~15s; refresh after txs |
+| Port 3000 busy | Stop other Node / Compose stacks |
 
 ---
 
-## 15. Verdict
+## 16. Verdict
 
-**Hackathon-ready MVP:** Dockerized, Freighter-compatible, Stellar Testnet contracts live, and the full grant lifecycle is available in the UI without manual on-chain ID mapping.
+**MVP complete for Testnet demos:** auth by role, milestone-first grants with AI criteria review (Kimi), Freighter escrow/release, passport, and dashboard lifecycle browsing are wired and Dockerized.

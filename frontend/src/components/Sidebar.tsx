@@ -37,7 +37,7 @@ export default function Sidebar() {
   const builderHref = address ? `/builder/${address}` : "/builder/me";
 
   const navLinks: NavLink[] = [
-    { name: "HOME", href: "/", icon: Home, hint: "Landing" },
+    { name: "HOME", href: "/home", icon: Home, hint: "Landing" },
     { name: "DASHBOARD", href: "/dashboard", icon: Terminal, hint: "Overview" },
     { name: "GRANTS", href: "/grants", icon: Database, hint: "Create & manage grants" },
     {
@@ -68,7 +68,7 @@ export default function Sidebar() {
       }`}
     >
       <div className="h-16 flex items-center justify-between px-3 border-b border-crucible-border gap-2">
-        <Link href="/" className="flex items-center gap-3 min-w-0 overflow-hidden">
+        <Link href="/home" className="flex items-center gap-3 min-w-0 overflow-hidden">
           <img
             src="/logo.png"
             alt="Equidox"
@@ -110,7 +110,8 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-5 flex flex-col gap-1 px-2">
         {navLinks.map((link) => {
           let isActive = false;
-          if (link.name === "HOME") isActive = pathname === "/";
+          if (link.name === "HOME")
+            isActive = pathname === "/home" || pathname === "/";
           else if (link.name === "BUILDERS")
             isActive = pathname.startsWith("/builder");
           else if (link.name === "REVIEW")

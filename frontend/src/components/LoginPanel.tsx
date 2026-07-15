@@ -15,7 +15,7 @@ type LoginPanelProps = {
 export default function LoginPanel({
   onSubmit,
   usernamePlaceholder = "demo",
-  footerHint = "Demo · demo / demo · Keycloak realm equidox",
+  footerHint,
   defaultUsername = "",
   defaultPassword = "",
 }: LoginPanelProps) {
@@ -108,9 +108,11 @@ export default function LoginPanel({
           </button>
         </form>
 
-        <p className="mt-6 text-[10px] uppercase tracking-widest text-zinc-600 text-center">
-          {footerHint}
-        </p>
+        {footerHint ? (
+          <p className="mt-6 text-[10px] uppercase tracking-widest text-zinc-600 text-center">
+            {footerHint}
+          </p>
+        ) : null}
       </motion.div>
     </div>
   );

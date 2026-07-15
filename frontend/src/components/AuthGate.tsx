@@ -11,8 +11,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { address } = useWallet();
+  // `/` is entry-only. `/home` is the signed-in landing (no wallet required).
   const isPublicAuth =
     pathname === "/login" || pathname === "/admin" || pathname === "/";
+  const allowWithoutWallet = isPublicAuth || pathname === "/home";
 
   useEffect(() => {
     if (loading || isPublicAuth || isAuthenticated) return;
@@ -39,7 +41,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!address) {
+  if (!address && !allowWithoutWallet) {
     return (
       <div className="h-full w-full flex flex-col gap-4 items-center justify-center bg-transparent text-zinc-500">
         <Wallet className="w-12 h-12 text-crucible-gold opacity-50 mb-2" />

@@ -19,6 +19,7 @@ RUN addgroup -S equidox && adduser -S equidox -G equidox
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY src ./src
+COPY ai ./ai
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN sed -i 's/\r$//' ./docker-entrypoint.sh && chmod +x ./docker-entrypoint.sh && chown -R equidox:equidox /app

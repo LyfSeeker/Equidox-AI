@@ -7,7 +7,8 @@ import Topbar from "@/components/Topbar";
 
 export default function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthShell = pathname === "/login" || pathname === "/admin";
+  const isAuthShell =
+    pathname === "/login" || pathname === "/admin" || pathname === "/";
 
   if (isAuthShell) {
     return <div className="flex-1 w-full h-full min-h-0">{children}</div>;
