@@ -9,7 +9,6 @@ import {
   bytesN32ToScVal,
   submitTransaction,
   readGrant,
-  readEscrowBalance,
 } from "../services/stellar.js";
 import { indexEvent } from "../services/indexer.js";
 
@@ -97,6 +96,7 @@ router.patch("/:id", async (req, res, next) => {
       status,
       escrowedStroops,
       releasedStroops,
+      totalBudgetStroops,
     } = req.body;
 
     const result = await query(
@@ -105,8 +105,9 @@ router.patch("/:id", async (req, res, next) => {
          tx_hash = COALESCE($2, tx_hash),
          status = COALESCE($3, status),
          escrowed_stroops = COALESCE($4, escrowed_stroops),
-         released_stroops = COALESCE($5, released_stroops)
-       WHERE id = $6
+         released_stroops = COALESCE($5, released_stroops),
+         total_budget_stroops = COALESCE($6, total_budget_stroops)
+       WHERE id = $7
        RETURNING *`,
       [
         onChainGrantId ?? null,
@@ -114,6 +115,7 @@ router.patch("/:id", async (req, res, next) => {
         status ?? null,
         escrowedStroops ?? null,
         releasedStroops ?? null,
+        totalBudgetStroops ?? null,
         req.params.id,
       ]
     );
@@ -142,23 +144,23 @@ router.get("/:id", async (req, res, next) => {
     if (!result.rows[0]) return res.status(404).json({ error: "Grant not found" });
 
     const grant = result.rows[0];
+    const skipLive =
+      req.query.live === "0" ||
+      req.query.live === "false" ||
+      process.env.GRANT_DETAIL_SKIP_LIVE === "true";
+
     let onChain = null;
-    let escrow = null;
-    if (grant.on_chain_grant_id != null) {
+    if (!skipLive && grant.on_chain_grant_id != null) {
       onChain = await readGrant(grant.on_chain_grant_id);
-      escrow = await readEscrowBalance(grant.on_chain_grant_id);
       if (onChain) {
-        await query(
+        // Fire-and-forget DB refresh — don't block the response
+        query(
           `UPDATE grants SET
              escrowed_stroops = $1,
              released_stroops = $2
            WHERE id = $3`,
-          [
-            onChain.escrowed_balance,
-            onChain.released_total,
-            grant.id,
-          ]
-        );
+          [onChain.escrowed_balance, onChain.released_total, grant.id]
+        ).catch(() => {});
         grant.escrowed_stroops = onChain.escrowed_balance;
         grant.released_stroops = onChain.released_total;
       }
@@ -167,7 +169,8 @@ router.get("/:id", async (req, res, next) => {
     res.json({
       ...grant,
       on_chain: onChain,
-      live_escrow_stroops: escrow ?? grant.escrowed_stroops ?? 0,
+      live_escrow_stroops:
+        onChain?.escrowed_balance ?? grant.escrowed_stroops ?? 0,
     });
   } catch (err) {
     next(err);

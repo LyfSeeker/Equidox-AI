@@ -113,46 +113,66 @@ export default function VerificationView() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const g = await api.getGrant(grantId);
+      // DB-first parallel load — paint fast, then sync selected milestone in background
+      const [g, ms] = await Promise.all([
+        api.getGrant(grantId),
+        api.listMilestones(grantId).catch(() => []),
+      ]);
       setGrant(g);
-      const ms = await api.listMilestones(grantId).catch(() => []);
-      // Heal status from chain for each milestone (best-effort), keep AI reports
-      const healed = await Promise.all(
-        ms.map(async (row) => {
-          if (
-            row.on_chain_milestone_id == null ||
-            g.on_chain_grant_id == null
-          ) {
-            return row;
-          }
-          try {
-            const s = await api.syncMilestone({
-              milestoneId: row.id,
-              onChainGrantId: g.on_chain_grant_id,
-              onChainMilestoneId: row.on_chain_milestone_id,
-            });
-            return {
-              ...row,
-              ...(s.milestone || {}),
-              latest_report: row.latest_report,
-            };
-          } catch {
-            return row;
-          }
-        })
-      );
-      setMilestones(healed);
+      setMilestones(ms);
       let nextId: number | null = null;
       setSelectedId((prev) => {
         nextId =
-          prev && healed.some((m) => m.id === prev)
-            ? prev
-            : (healed[0]?.id ?? null);
+          prev && ms.some((m) => m.id === prev) ? prev : (ms[0]?.id ?? null);
         return nextId;
       });
-      hydrateFromMilestone(
-        healed.find((m) => m.id === nextId) || healed[0] || null
-      );
+      const selectedRow =
+        ms.find((m) => m.id === nextId) || ms[0] || null;
+      hydrateFromMilestone(selectedRow);
+
+      // Soft-heal selected milestone from chain once (not every row)
+      if (
+        selectedRow &&
+        selectedRow.on_chain_milestone_id != null &&
+        g.on_chain_grant_id != null
+      ) {
+        api
+          .syncMilestone({
+            milestoneId: selectedRow.id,
+            onChainGrantId: g.on_chain_grant_id,
+            onChainMilestoneId: selectedRow.on_chain_milestone_id,
+          })
+          .then((s) => {
+            if (!s?.milestone) return;
+            setMilestones((prev) =>
+              prev.map((row) => {
+                if (row.id !== selectedRow.id) return row;
+                const next = {
+                  ...row,
+                  ...s.milestone,
+                  latest_report: row.latest_report,
+                  evidence_json: s.milestone.evidence_json ?? row.evidence_json,
+                };
+                // Never regress below what the UI already showed as submitted
+                const rank: Record<string, number> = {
+                  pending: 0,
+                  submitted: 1,
+                  under_review: 2,
+                  approved: 3,
+                  paid: 4,
+                  rejected: 1,
+                };
+                const cur = rank[String(row.status).toLowerCase()] ?? 0;
+                const syn = rank[String(next.status).toLowerCase()] ?? 0;
+                if (cur > syn && String(next.status).toLowerCase() !== "rejected") {
+                  next.status = row.status;
+                }
+                return next;
+              })
+            );
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load grant");
     } finally {
@@ -162,7 +182,7 @@ export default function VerificationView() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 20000);
+    const t = setInterval(load, 45000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grantId]);
@@ -279,7 +299,7 @@ export default function VerificationView() {
         demoUrl: demoUrl.trim(),
         docsUrl: docsUrl.trim(),
         notes: notes.trim() || null,
-        milestoneTitle: selected.title,
+        milestoneTitle: selected.title || undefined,
         submittedAt: new Date().toISOString(),
       };
 
@@ -293,7 +313,7 @@ export default function VerificationView() {
 
       setTxStep("Confirm submit in Freighter...");
       const submitted = await signAndSubmit(built.unsignedTransaction);
-      await api.updateMilestone(selected.id, {
+      const updated = await api.updateMilestone(selected.id, {
         status: "submitted",
         evidenceHash: built.evidenceHash,
         submitTxHash: submitted.hash,
@@ -314,8 +334,25 @@ export default function VerificationView() {
         },
         txHash: submitted.hash,
       });
+
+      // Optimistic UI — show Submitted immediately (don't wait on reload/sync)
+      setMilestones((prev) =>
+        prev.map((row) => {
+          if (row.id !== selected.id) return row;
+          const patched: Milestone = {
+            ...row,
+            ...(updated as Milestone),
+            status: "submitted",
+            evidence_hash: built.evidenceHash,
+            evidence_json: evidencePayload,
+            evidence_ipfs_cid: built.ipfsCid || null,
+            submit_tx_hash: submitted.hash,
+          };
+          return patched;
+        })
+      );
       setStatus(`Evidence submitted. Tx: ${submitted.hash}`);
-      toast.success("Evidence details anchored on-chain");
+      toast.success("Submitted", "Evidence anchored on-chain — awaiting AI review");
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Submit failed";
@@ -1041,15 +1078,17 @@ export default function VerificationView() {
                         : "border-crucible-border hover:bg-white/5"
                     }`}
                   >
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between gap-2 items-start">
                       <span className="text-xs text-white font-bold uppercase">
                         {m.title || `Milestone #${m.id}`}
                       </span>
-                      <span className="text-[10px] text-crucible-cyan uppercase">
-                        {m.status}
-                        {m.evidence_json ? " · DOCS IN" : ""}
-                      </span>
+                      <StatusBadge status={m.status} />
                     </div>
+                    {m.evidence_json ? (
+                      <p className="text-[10px] text-crucible-gold uppercase tracking-widest mt-1">
+                        Docs submitted
+                      </p>
+                    ) : null}
                     {m.description && (
                       <p className="text-[10px] text-zinc-500 mt-1 line-clamp-2">
                         {m.description}
@@ -1079,66 +1118,157 @@ export default function VerificationView() {
 
           {!isAdmin && (
           <form onSubmit={submitEvidence} className="panel-border p-5 space-y-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
-              <Code2 className="w-4 h-4 text-crucible-gold" /> Submit Evidence
-            </h3>
-            <p className="text-[10px] text-zinc-500">
-              Fill in delivery details for{" "}
-              <span className="text-white">
-                {selected?.title || "the selected milestone"}
-              </span>
-              . These are hashed and submitted on-chain for admin review.
-            </p>
-            <label className="block text-[10px] font-bold tracking-widest uppercase">
-              GitHub Repo *
-              <input
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="https://github.com/org/repo"
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-                required
-              />
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="block text-[10px] font-bold tracking-widest uppercase">
-                Demo / Deployment URL
-                <input
-                  value={demoUrl}
-                  onChange={(e) => setDemoUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-                />
-              </label>
-              <label className="block text-[10px] font-bold tracking-widest uppercase">
-                Docs URL
-                <input
-                  value={docsUrl}
-                  onChange={(e) => setDocsUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
-                />
-              </label>
-            </div>
-            <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Builder notes / details
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="What was delivered, how to test, known limitations…"
-                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white min-h-24"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={busy || !selected}
-              className="w-full py-3 border border-crucible-border text-xs font-bold uppercase tracking-widest hover:bg-white/5 disabled:opacity-60"
-            >
-              {!selected
-                ? "Waiting for admin milestones"
-                : busy
-                  ? "Submitting..."
-                  : "Submit Evidence On-Chain"}
-            </button>
+            {(() => {
+              const statusKey = (selected?.status || "").toLowerCase();
+              const evidenceIn =
+                Boolean(selected?.evidence_json) ||
+                ["submitted", "under_review", "approved", "paid"].includes(
+                  statusKey
+                );
+              const canEdit =
+                !evidenceIn ||
+                statusKey === "pending" ||
+                statusKey === "rejected";
+
+              if (evidenceIn && !canEdit) {
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                        <Code2 className="w-4 h-4 text-crucible-gold" /> Evidence
+                      </h3>
+                      <StatusBadge status={selected?.status || "submitted"} />
+                    </div>
+                    <div className="border border-crucible-gold/40 bg-crucible-gold/10 px-3 py-2 text-[10px] text-crucible-gold leading-relaxed">
+                      Submitted
+                      {selected?.evidence_json?.submittedAt
+                        ? ` · ${new Date(selected.evidence_json.submittedAt).toLocaleString()}`
+                        : ""}
+                      {" — "}
+                      awaiting admin AI review
+                      {selected?.submit_tx_hash
+                        ? ` · tx ${selected.submit_tx_hash.slice(0, 10)}…`
+                        : ""}
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                          GitHub Repo
+                        </p>
+                        <p className="text-xs text-white break-all border border-crucible-border bg-black px-3 py-2">
+                          {repoUrl || selected?.evidence_json?.repoUrl || "—"}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                            Demo / Deployment
+                          </p>
+                          <p className="text-xs text-white break-all border border-crucible-border bg-black px-3 py-2">
+                            {demoUrl || selected?.evidence_json?.demoUrl || "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                            Docs URL
+                          </p>
+                          <p className="text-xs text-white break-all border border-crucible-border bg-black px-3 py-2">
+                            {docsUrl || selected?.evidence_json?.docsUrl || "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 mb-1">
+                          Builder notes
+                        </p>
+                        <p className="text-xs text-white whitespace-pre-wrap border border-crucible-border bg-black px-3 py-2 min-h-16">
+                          {notes || selected?.evidence_json?.notes || "—"}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full py-3 bg-crucible-gold/20 border border-crucible-gold text-crucible-gold text-xs font-bold uppercase tracking-widest disabled:opacity-100 cursor-default"
+                    >
+                      Submitted
+                    </button>
+                  </>
+                );
+              }
+
+              return (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                      <Code2 className="w-4 h-4 text-crucible-gold" /> Submit Evidence
+                    </h3>
+                    {selected ? (
+                      <StatusBadge status={selected.status} />
+                    ) : null}
+                  </div>
+                  <p className="text-[10px] text-zinc-500">
+                    Fill in delivery details for{" "}
+                    <span className="text-white">
+                      {selected?.title || "the selected milestone"}
+                    </span>
+                    . These are hashed and submitted on-chain for admin review.
+                  </p>
+                  <label className="block text-[10px] font-bold tracking-widest uppercase">
+                    GitHub Repo *
+                    <input
+                      value={repoUrl}
+                      onChange={(e) => setRepoUrl(e.target.value)}
+                      placeholder="https://github.com/org/repo"
+                      className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
+                      required
+                    />
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="block text-[10px] font-bold tracking-widest uppercase">
+                      Demo / Deployment URL
+                      <input
+                        value={demoUrl}
+                        onChange={(e) => setDemoUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
+                      />
+                    </label>
+                    <label className="block text-[10px] font-bold tracking-widest uppercase">
+                      Docs URL
+                      <input
+                        value={docsUrl}
+                        onChange={(e) => setDocsUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-[10px] font-bold tracking-widest uppercase">
+                    Builder notes / details
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="What was delivered, how to test, known limitations…"
+                      className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white min-h-24"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={busy || !selected}
+                    className="w-full py-3 border border-crucible-border text-xs font-bold uppercase tracking-widest hover:bg-white/5 disabled:opacity-60"
+                  >
+                    {!selected
+                      ? "Waiting for admin milestones"
+                      : busy
+                        ? "Submitting..."
+                        : statusKey === "rejected"
+                          ? "Resubmit Evidence On-Chain"
+                          : "Submit Evidence On-Chain"}
+                  </button>
+                </>
+              );
+            })()}
           </form>
           )}
 

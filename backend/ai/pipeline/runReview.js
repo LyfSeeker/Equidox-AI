@@ -209,7 +209,12 @@ export async function runReviewPipeline(input = {}, deps = {}) {
   const context = buildReviewContext(input);
   await mcpAdapters.github.getRepoEvidence(async () => context.githubData);
 
-  const fp = contextFingerprint(context);
+  const fp = {
+    evidence: contextFingerprint(context),
+    primary: process.env.AI_PRIMARY_PROVIDER || "kimi",
+    model: process.env.AI_MODEL || "",
+    prompt: PROMPT_VERSION,
+  };
   if (process.env.AI_CACHE_REPORTS !== "false") {
     const cached = analysisCache.get("report", fp);
     if (cached) {
@@ -269,9 +274,18 @@ export async function runReviewPipeline(input = {}, deps = {}) {
     }
   }
 
+  // Freeze attribution from the decision call — later repair/self-review may
+  // fall back to Gemini and must not relabel the report as Gemini.
+  let attribution = {
+    model: meta?.model,
+    providerId: meta?.providerId,
+    providerName: meta?.providerName,
+  };
+  let totalLatency = Number(meta?.latencyMs || 0);
+  let tokens = meta?.tokens;
+
   let validated = validateReport(raw);
   if (!validated.ok) {
-    // retry once with validation feedback
     try {
       const retry = await callChat(
         [
@@ -284,7 +298,16 @@ export async function runReviewPipeline(input = {}, deps = {}) {
         { temperature: 0, jsonMode: true }
       );
       validated = validateReport(extractJson(retry.content));
-      meta = retry;
+      totalLatency += Number(retry.latencyMs || 0);
+      tokens = retry.tokens || tokens;
+      // Only refresh attribution if retry produced the accepted report
+      if (validated.ok && retry.providerId) {
+        attribution = {
+          model: retry.model,
+          providerId: retry.providerId,
+          providerName: retry.providerName,
+        };
+      }
     } catch {
       // keep schema-safe fallback
     }
@@ -297,7 +320,10 @@ export async function runReviewPipeline(input = {}, deps = {}) {
     const sr = await selfReviewPass(callChat, report, context);
     report = sr.report;
     selfReviewed = sr.selfReviewed;
-    if (sr.meta) meta = sr.meta;
+    if (sr.meta) {
+      totalLatency += Number(sr.meta.latencyMs || 0);
+      // keep decision attribution; ignore self-review provider for labels
+    }
   }
 
   const payload = {
@@ -309,11 +335,11 @@ export async function runReviewPipeline(input = {}, deps = {}) {
     selfReviewed,
     repaired: validated.repaired,
     meta: {
-      latencyMs: meta?.latencyMs,
-      tokens: meta?.tokens,
-      model: meta?.model,
-      providerId: meta?.providerId,
-      providerName: meta?.providerName,
+      latencyMs: totalLatency,
+      tokens,
+      model: attribution.model,
+      providerId: attribution.providerId,
+      providerName: attribution.providerName,
     },
     prompt_version: PROMPT_VERSION,
     cached: false,

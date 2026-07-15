@@ -34,7 +34,11 @@ app.use((err, _req, res, _next) => {
       hint: "Fund this Testnet account with Friendbot via POST /api/friendbot",
     });
   }
-  res.status(500).json({ error: msg });
+  res.status(500).json({
+    error: msg,
+    ...(err.code ? { code: err.code } : {}),
+    ...(err.hint ? { hint: err.hint } : {}),
+  });
 });
 
 app.listen(PORT, () => {

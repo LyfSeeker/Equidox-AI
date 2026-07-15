@@ -59,26 +59,22 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [g, e, h] = await Promise.all([
+      const [g, e, h, pending, passport] = await Promise.all([
         api.listGrants().catch(() => [] as Grant[]),
         api.listEvents(20).catch(() => [] as ChainEvent[]),
         api.health().catch(() => null),
+        isAdmin
+          ? api.listSubmittedMilestones().catch(() => [])
+          : Promise.resolve([]),
+        address
+          ? api.getPassport(address).catch(() => null)
+          : Promise.resolve(null),
       ]);
       setGrants(g);
       setEvents(e);
       setHealth(h);
-
-      if (isAdmin) {
-        const pending = await api.listSubmittedMilestones().catch(() => []);
-        setSubmissions(pending);
-      } else {
-        setSubmissions([]);
-      }
-
-      if (address) {
-        const p = await api.getPassport(address).catch(() => null);
-        setPassportScore(p?.reputation_score ?? null);
-      }
+      setSubmissions(pending);
+      setPassportScore(passport?.reputation_score ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -88,7 +84,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 15000);
+    const t = setInterval(load, 30000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -107,7 +103,7 @@ export default function Dashboard() {
     }
   }, [grants, selectedGrantId]);
 
-  // Load lifecycle data for the selected grant
+  // Load lifecycle data for the selected grant (DB only — no chain sync)
   useEffect(() => {
     if (selectedGrantId == null) {
       setMilestones([]);
@@ -125,7 +121,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [selectedGrantId, loading]);
+  }, [selectedGrantId]);
 
   const selectedGrant = useMemo(
     () => grants.find((g) => g.id === selectedGrantId) || null,
