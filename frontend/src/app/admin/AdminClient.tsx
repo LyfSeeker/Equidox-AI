@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import LoginPanel from "@/components/LoginPanel";
 import { useAuth } from "@/context/AuthContext";
 import { isAdminUser, loadTokens, parseJwtPayload } from "@/lib/keycloak";
+import { homePathForRole } from "@/lib/authRedirect";
 
 export default function AdminClient() {
-  const { login, logout, isAuthenticated, loading, user, isAdmin } = useAuth();
+  const { login, logout, isAuthenticated, loading, isAdmin } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!loading && isAuthenticated && isAdmin) {
-      router.replace("/dashboard");
+      router.replace(homePathForRole(true));
     }
   }, [loading, isAuthenticated, isAdmin, router]);
 
@@ -37,7 +38,6 @@ export default function AdminClient() {
       usernamePlaceholder="admin"
       defaultUsername="admin"
       defaultPassword="admin"
-      footerHint="Admin · admin / admin · Keycloak realm equidox"
       onSubmit={async (username, password) => {
         await login(username, password);
         const tokens = loadTokens();
@@ -46,7 +46,7 @@ export default function AdminClient() {
           await logout();
           throw new Error("This page is for Equidox admins only");
         }
-        router.replace("/dashboard");
+        router.replace(homePathForRole(true));
       }}
     />
   );

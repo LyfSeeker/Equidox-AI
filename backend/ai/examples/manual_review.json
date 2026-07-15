@@ -1,0 +1,54 @@
+{
+  "overallScore": 62,
+  "trustScore": 58,
+  "confidenceScore": 55,
+  "riskScore": 48,
+  "riskLevel": "MEDIUM",
+  "recommendation": "MANUAL_REVIEW",
+  "scores": {
+    "featureCompletion": 60,
+    "codeQuality": 70,
+    "architecture": 68,
+    "security": 55,
+    "documentation": 50,
+    "testing": 35,
+    "deployment": 40,
+    "githubHealth": 65,
+    "innovation": 55,
+    "maintainability": 60
+  },
+  "criteriaChecklist": [
+    {
+      "criterion": "Ship grant create + escrow deposit UI",
+      "status": "PARTIAL",
+      "reason": "Create grant UI exists; escrow modal present but live deposit success not evidenced in notes."
+    },
+    {
+      "criterion": "Unit tests for payout path",
+      "status": "NOT_VERIFIED",
+      "reason": "Not enough evidence — no payout-related tests found in sampled tree."
+    }
+  ],
+  "executiveSummary": "Core UI exists but milestone criteria are only partially evidenced; testing and deployment gaps require human review.",
+  "technicalFindings": [
+    "Frontend routes for grants exist.",
+    "Backend escrow builders referenced but runtime proof limited."
+  ],
+  "architectureReview": "Reasonable layering, but money-path test coverage is thin.",
+  "securityFindings": [
+    "Auth gates appear present; cannot verify production hardening from evidence pack."
+  ],
+  "documentationReview": "README is brief; env setup incomplete.",
+  "testingReview": "Few or no tests for payout-critical paths.",
+  "githubAnalysis": "Moderate activity; several large commits.",
+  "strengths": ["Working grant UI scaffolding"],
+  "weaknesses": ["Incomplete criteria mapping", "Weak test evidence"],
+  "missingEvidence": [
+    "Successful deposit tx hash",
+    "Payout unit/integration tests"
+  ],
+  "recommendations": [
+    "Add payout tests and attach a Testnet deposit explorer link"
+  ],
+  "reviewerNotes": "Prefer MANUAL_REVIEW over APPROVE due to unverified criteria."
+}

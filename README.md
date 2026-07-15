@@ -2,6 +2,8 @@
 
 Production-oriented Soroban workspace for **Equidox AI**: milestone verification escrow, grant management, and builder reputation on Stellar.
 
+**Status (2026-07-15):** Dockerized Testnet MVP — Keycloak login-first → role homes → Freighter grant lifecycle → **Equidox AI v1.0** (Kimi primary, criteria-first). See `PROJECT_STATUS.md` and `ARCHITECTURE.md`.
+
 ## Contracts
 
 | Contract | WASM | Purpose |
@@ -36,14 +38,18 @@ The grant manager escrows XLM via the **Stellar Asset Contract (SAC)**. Pass the
 
 ## Architecture
 
-- **On-chain**: grant IDs, escrow balances, milestone state machine, IPFS content hashes, passport aggregates, events
-- **Off-chain**: AI analysis (OpenAI), GitHub data, full reports (IPFS), reviewer notes, x402 premium payments
+- **On-chain**: grant IDs, escrow balances, milestone state machine, verification hashes, passport aggregates, events
+- **Off-chain**: Equidox AI v1.0 (Kimi / failover providers), GitHub evidence, reports (Postgres + optional IPFS), Keycloak auth, x402 premium (optional)
+
+Detailed diagrams: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
 ## Grant lifecycle
 
 ```
-create_grant → deposit_funds → add_milestone → submit_milestone
-  → store_verification_hash → approve_milestone → release_funds
+create_grant (+ add_milestone × N with acceptance criteria)
+  → deposit_funds → submit_milestone
+  → AI verify + store_verification_hash
+  → approve_milestone → release_funds
 ```
 
 ## Testnet Deployment (live)
@@ -65,7 +71,9 @@ npm run db:migrate   # requires PostgreSQL
 npm run dev
 ```
 
-API health check: `GET http://localhost:4000/api/health`
+API health check: `GET http://localhost:4000/api/health` (includes `ai.primary`, e.g. `kimi`)
+
+AI keys live in `backend/.env` — see `backend/.env.example` (Kimi primary: `AI_API_KEY`, `AI_PRIMARY_PROVIDER=kimi`).
 
 ## Docker
 
@@ -75,16 +83,21 @@ Run frontend + backend + PostgreSQL + Keycloak:
 docker compose up --build
 ```
 
-- Frontend: `http://localhost:3000` (redirects to `/login` until signed in)
+- Frontend: `http://localhost:3000` → redirects to `/login` until signed in  
+  - User `demo` / `demo` → `/submit`  
+  - Admin `admin` / `admin` → `/dashboard`  
+  - Landing: `/home` (sidebar HOME)
 - API: `http://localhost:4000/api/health`
-- Keycloak: `http://localhost:8180` (admin `admin` / `admin`)
-- App Postgres: `localhost:5432` (user/password/db: `postgres` / `postgres` / `equidox`)
-- Keycloak Postgres: `localhost:5433` (user/password/db: `keycloak` / `keycloak` / `keycloak`) — stores users, credentials, sessions, realm config
+- Keycloak: `http://localhost:8180` (console admin `admin` / `admin`)
+- App Postgres: `localhost:5432` (`postgres` / `postgres` / `equidox`)
+- Keycloak Postgres: `localhost:5433` (`keycloak` / `keycloak` / `keycloak`)
 
-**Login:** Keycloak realm `equidox`
-- User: `demo` / `demo` at http://localhost:3000/login
-- Admin: `admin` / `admin` at http://localhost:3000/admin  
-After sign-in, connect Freighter for on-chain actions.
+After sign-in, connect Freighter (Testnet) for on-chain actions.
+
+```powershell
+# Inspect app DB
+docker exec -it equidox-postgres psql -U postgres -d equidox
+```
 
 Individual images:
 
@@ -93,14 +106,13 @@ docker build -t equidox-backend ./backend
 docker build -t equidox-frontend ./frontend
 ```
 
-Optional secrets (`OPENAI_API_KEY`, `GITHUB_TOKEN`, etc.) can be set in a root `.env` file used by Compose.
-
-
 ```
 contracts/
   common/           # Shared types, errors, events
   grant-manager/    # Main escrow contract
   builder-passport/ # Reputation registry
-backend/            # Express API for AI, IPFS, tx building
-scripts/            # Deploy & initialize scripts
+backend/            # Express API — AI in services/llm.js
+frontend/           # Next.js UI
+keycloak/           # Realm import
+scripts/            # Deploy & initialize
 ```

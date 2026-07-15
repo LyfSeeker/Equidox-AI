@@ -1,349 +1,15 @@
-/**
- * Equidox AI — OpenAI-compatible LLM client (Kimi, Gemini, OpenAI, etc.).
- */
 import {
   getAiConfig,
   getFallbackProviders,
   getPrimaryProvider,
   getProviderById,
 } from "./settings.js";
-
-export const PROMPT_VERSION = "equidox-ai-v1.0";
-
-const SYSTEM_PROMPT = `# SYSTEM PROMPT — EQUIDOX AI v1.0
-
-You are Equidox AI, an expert technical reviewer for blockchain grants, hackathons, and milestone-based funding.
-
-Your responsibility is to objectively evaluate whether a builder has completed a milestone based on evidence provided.
-
-IMPORTANT RULES
-
-You DO NOT approve or reject payments.
-
-You DO NOT release funds.
-
-You ONLY provide an objective technical assessment.
-
-Your recommendation is advisory.
-
-The final decision is always made by a human reviewer.
-
---------------------------------------------------
-
-YOUR ROLE
-
-Act like a senior software engineer, blockchain architect, security auditor, DevOps engineer, open-source maintainer, and technical grant reviewer with over 15 years of experience.
-
-Evaluate projects exactly like a hackathon judge would.
-
-Be skeptical.
-
-Never assume missing work exists.
-
-Only score what is demonstrated by evidence.
-
-If evidence is missing, explicitly state it.
-
---------------------------------------------------
-
-YOUR GOAL
-
-Determine whether the submitted milestone satisfies the acceptance criteria.
-
-Use ONLY:
-
-- GitHub repository
-- Commit history
-- Pull requests
-- Branches
-- Documentation
-- README
-- Deployment links
-- Demo URLs
-- Uploaded notes
-- File tree
-- Source code
-- Test reports
-- API documentation
-
-Never invent information.
-
-The milestone.acceptanceCriteria / description field is authoritative. Break it into criteriaChecklist rows.
-
---------------------------------------------------
-
-SCORING CRITERIA
-
-Evaluate the project in the following categories.
-
-1. Feature Completion (30%)
-
-Does the implementation satisfy the milestone acceptance criteria?
-
-Does it implement every required feature?
-
-Does it partially implement features?
-
-Does it miss important functionality?
-
-2. Code Quality (20%)
-
-Project structure
-
-Readability
-
-Naming
-
-Modularity
-
-Error handling
-
-Maintainability
-
-Architecture
-
-3. Security (15%)
-
-Input validation
-
-Authentication
-
-Authorization
-
-Secrets
-
-Environment variables
-
-Unsafe code
-
-Dependency risks
-
-Blockchain security
-
-4. Documentation (10%)
-
-README quality
-
-Architecture explanation
-
-Installation guide
-
-Usage guide
-
-API documentation
-
-Comments where necessary
-
-5. Testing (10%)
-
-Unit tests
-
-Integration tests
-
-Coverage
-
-Manual verification evidence
-
-6. Deployment (5%)
-
-Live deployment
-
-Docker support
-
-CI/CD
-
-Configuration
-
-7. GitHub Activity (5%)
-
-Commit quality
-
-Meaningful history
-
-Consistent development
-
-PR quality
-
-Repository organization
-
-8. Innovation (5%)
-
-Novelty
-
-Technical complexity
-
-Good engineering decisions
-
---------------------------------------------------
-
-SCORING
-
-Return scores from 0 to 100.
-
-overallScore
-
-featureCompletion
-
-codeQuality
-
-security
-
-documentation
-
-testing
-
-deployment
-
-githubHealth
-
-innovation
-
-trustScore
-
-riskScore
-
-confidenceScore
-
-If you compute overallScore yourself, weight categories as listed above.
-
---------------------------------------------------
-
-RISK LEVEL
-
-Risk must be exactly one of
-
-LOW
-
-MEDIUM
-
-HIGH
-
-CRITICAL
-
---------------------------------------------------
-
-RECOMMENDATION
-
-Recommendation must be exactly one of
-
-APPROVE
-
-MANUAL_REVIEW
-
-REJECT
-
-Decision Rules
-
-APPROVE
-
-Acceptance criteria satisfied
-
-Good evidence
-
-No major risks
-
-Confidence > 80
-
-MANUAL_REVIEW
-
-Evidence incomplete
-
-Deployment unavailable
-
-Some criteria uncertain
-
-Confidence 50–80
-
-REJECT
-
-Acceptance criteria not met
-
-Evidence missing
-
-Project mostly incomplete
-
-Security issues
-
-Confidence below 50
-
---------------------------------------------------
-
-CHECKLIST
-
-Generate a checklist from the milestone acceptance criteria.
-
-Each criterion should contain
-
-criterion
-
-status — exactly one of PASS | FAIL | PARTIAL | NOT_VERIFIED
-
-reason
-
---------------------------------------------------
-
-IMPORTANT
-
-Be conservative.
-
-Never reward assumptions.
-
-If something cannot be verified, write
-
-"Not enough evidence."
-
-Never hallucinate.
-
---------------------------------------------------
-
-OUTPUT FORMAT
-
-Return ONLY valid JSON.
-
-No markdown.
-
-No explanations.
-
-No extra text.
-
-JSON schema:
-
-{
-  "overallScore": 0,
-  "trustScore": 0,
-  "confidenceScore": 0,
-  "riskScore": 0,
-  "riskLevel": "",
-  "recommendation": "",
-
-  "scores": {
-    "featureCompletion": 0,
-    "codeQuality": 0,
-    "security": 0,
-    "documentation": 0,
-    "testing": 0,
-    "deployment": 0,
-    "githubHealth": 0,
-    "innovation": 0
-  },
-
-  "criteriaChecklist": [
-    {
-      "criterion": "",
-      "status": "",
-      "reason": ""
-    }
-  ],
-
-  "strengths": [],
-  "weaknesses": [],
-  "missingEvidence": [],
-  "securityFindings": [],
-  "recommendations": [],
-
-  "executiveSummary": "",
-  "reviewerNotes": ""
-}`;
+import {
+  PROMPT_VERSION as PIPELINE_PROMPT_VERSION,
+  runReviewPipeline,
+} from "../../ai/index.js";
+
+export const PROMPT_VERSION = PIPELINE_PROMPT_VERSION;
 
 function clamp(n, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(Number(n) || 0)));
@@ -361,98 +27,6 @@ function mapRecommendation(raw) {
   return "review";
 }
 
-function buildUserPrompt(input) {
-  const {
-    milestone,
-    githubData,
-    documentation,
-    deployment,
-    commits,
-    pullRequests,
-    issues,
-    readme,
-    fileTree,
-    sourceFiles,
-  } = input;
-
-  const milestoneBlock =
-    typeof milestone === "string"
-      ? milestone
-      : JSON.stringify(milestone || {}, null, 2);
-
-  const sources = (sourceFiles || githubData?.sourceFiles || [])
-    .slice(0, 12)
-    .map((f) => ({
-      path: f.path,
-      content: String(f.content || "").slice(0, 6000),
-    }));
-
-  return `## Milestone under review (acceptance criteria are authoritative)
-${milestoneBlock}
-
-Treat acceptanceCriteria / description as the checklist the builder must satisfy.
-Map each criterion into your criteriaChecklist when possible.
-
-Repository metadata
-${JSON.stringify(
-  {
-    owner: githubData?.owner,
-    repo: githubData?.repo,
-    name: githubData?.name,
-    description: githubData?.description,
-    stars: githubData?.stars,
-    forks: githubData?.forks,
-    languages: githubData?.languages,
-    contributors: githubData?.contributors,
-    ageDays: githubData?.ageDays,
-    createdAt: githubData?.createdAt,
-    lastPush: githubData?.lastPush,
-    hasTests: githubData?.hasTests,
-    testPaths: githubData?.testPaths,
-    sizeKb: githubData?.sizeKb,
-    workflowFiles: githubData?.workflowFiles,
-    packageJsonPresent: Boolean(githubData?.packageJson),
-    dockerfilePresent: Boolean(githubData?.dockerfile),
-    singleHugeCommit: githubData?.singleHugeCommit,
-    sourceFileCount: githubData?.sourceFileCount ?? sources.length,
-    error: githubData?.error,
-  },
-  null,
-  2
-)}
-
-Languages
-${JSON.stringify(githubData?.languages || {}, null, 2)}
-
-README
-${(readme || githubData?.readme || "").slice(0, 12000)}
-
-Documentation
-${(typeof documentation === "string"
-  ? documentation
-  : documentation?.text || ""
-).slice(0, 8000)}
-
-Recent Commits
-${JSON.stringify(commits || githubData?.commitDetails || githubData?.recentCommitMessages || [], null, 2)}
-
-Pull Requests
-${JSON.stringify(pullRequests || githubData?.pullRequests || [], null, 2)}
-
-Issues
-${JSON.stringify(issues || githubData?.issues || [], null, 2)}
-
-Deployment
-${deployment || githubData?.deploymentUrl || githubData?.homepage || "n/a"}
-
-File tree (sample)
-${JSON.stringify(fileTree || githubData?.fileTree || githubData?.treeSample || [], null, 2)}
-
-Source files (selected for review)
-${JSON.stringify(sources, null, 2)}
-
-Return ONLY valid JSON matching the Equidox AI v1.0 schema.`;
-}
 
 function mapChecklistStatus(row = {}) {
   const raw = String(row.status || row.State || "").toUpperCase().trim();
@@ -521,12 +95,18 @@ function normalizeReport(raw, meta) {
       raw.innovationScore ??
       50
   );
-  // Architecture folded into code quality in v1.0; keep a display field
   const architecture = clamp(
-    raw.architecture ??
+    nested.architecture ??
+      raw.architecture ??
       raw.architecture_score ??
       raw.architectureScore ??
       codeQuality
+  );
+  const maintainability = clamp(
+    nested.maintainability ??
+      raw.maintainability ??
+      raw.maintainability_score ??
+      50
   );
 
   const weighted = Math.round(
@@ -611,6 +191,7 @@ function normalizeReport(raw, meta) {
     documentation_score: documentation,
     test_coverage_score: testing,
     architecture_score: architecture,
+    maintainability_score: maintainability,
     deployment_score: deployment,
     github_health_score: githubHealth,
     innovation_score: innovation,
@@ -848,15 +429,9 @@ async function providersInOrder(preferredId) {
 }
 
 /**
- * Analyze a milestone — tries primary then other configured providers.
+ * Analyze a milestone via Equidox AI review pipeline (prompts + skills + validation).
  */
 export async function analyzeMilestone(input = {}) {
-  const userPrompt = buildUserPrompt(input);
-  const messages = [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: userPrompt },
-  ];
-
   const chain = await providersInOrder();
   if (!chain.length) {
     const err = new Error(
@@ -866,31 +441,48 @@ export async function analyzeMilestone(input = {}) {
     throw err;
   }
 
-  let lastErr;
-  for (const provider of chain) {
-    try {
-      const result = await callChatCompletions(provider, messages, {
-        temperature: 0.2,
-        jsonMode: true,
-      });
-      const parsed = extractJson(result.content);
-      return normalizeReport(parsed, {
-        githubData: input.githubData,
-        documentation: input.documentation,
-        latencyMs: result.latencyMs,
-        tokens: result.tokens,
-        model: result.model,
-        providerId: result.providerId,
-        providerName: result.providerName,
-      });
-    } catch (err) {
-      lastErr = err;
-      console.error(`[ai] provider ${provider.id} failed:`, err.message);
+  async function callChatCompletionsChain(messages, opts = {}) {
+    let lastErr;
+    for (const provider of chain) {
+      try {
+        return await callChatCompletions(provider, messages, opts);
+      } catch (err) {
+        lastErr = err;
+        console.error(`[ai] provider ${provider.id} failed:`, err.message);
+      }
     }
+    throw lastErr || new Error("All AI providers failed");
   }
 
-  throw lastErr || new Error("All AI providers failed");
+  const pipeline = await runReviewPipeline(input, { callChatCompletionsChain });
+  const raw = pipeline.report;
+  const meta = pipeline.meta || {};
+
+  const normalized = normalizeReport(raw, {
+    githubData: input.githubData,
+    documentation: input.documentation,
+    latencyMs: meta.latencyMs,
+    tokens: meta.tokens,
+    model: meta.model,
+    providerId: meta.providerId,
+    providerName: meta.providerName,
+  });
+
+  return {
+    ...normalized,
+    prompt_version: PROMPT_VERSION,
+    pipeline_mode: pipeline.mode,
+    skills_loaded: pipeline.skillIds,
+    self_reviewed: pipeline.selfReviewed,
+    cached: pipeline.cached || false,
+    technical_findings: raw.technicalFindings || [],
+    architecture_review: raw.architectureReview || "",
+    documentation_review: raw.documentationReview || "",
+    testing_review: raw.testingReview || "",
+    github_analysis: raw.githubAnalysis || "",
+  };
 }
+
 
 export async function chatAboutReport({
   message,
@@ -998,4 +590,4 @@ export async function testProvider(providerId) {
   };
 }
 
-export { SYSTEM_PROMPT, buildUserPrompt, getFallbackProviders };
+export { getFallbackProviders, runReviewPipeline };
