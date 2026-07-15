@@ -18,6 +18,24 @@ const router = Router();
 const ZERO_HASH =
   "0000000000000000000000000000000000000000000000000000000000000000";
 
+const STATUS_RANK = {
+  pending: 0,
+  submitted: 1,
+  under_review: 2,
+  approved: 3,
+  paid: 4,
+  rejected: 1,
+};
+
+/** Prefer advanced DB status if chain read is briefly stale after Freighter submit. */
+function mergeMilestoneStatus(dbStatus, chainStatus) {
+  const db = String(dbStatus || "pending").toLowerCase();
+  const chain = String(chainStatus || "pending").toLowerCase();
+  if (chain === "rejected") return "rejected";
+  if ((STATUS_RANK[db] ?? 0) > (STATUS_RANK[chain] ?? 0)) return db;
+  return chain;
+}
+
 async function syncMilestoneFromChain(dbMilestone, onChainGrantId, onChainMilestoneId) {
   let grantId = onChainGrantId;
   let mid =
@@ -45,6 +63,8 @@ async function syncMilestoneFromChain(dbMilestone, onChainGrantId, onChainMilest
       ? chain.verification_hash
       : null;
 
+  const nextStatus = mergeMilestoneStatus(dbMilestone.status, chain.status);
+
   const result = await query(
     `UPDATE milestones SET
        status = $1,
@@ -53,7 +73,7 @@ async function syncMilestoneFromChain(dbMilestone, onChainGrantId, onChainMilest
      WHERE id = $4
      RETURNING *`,
     [
-      chain.status,
+      nextStatus,
       chain.evidence_hash && chain.evidence_hash !== ZERO_HASH
         ? chain.evidence_hash
         : null,
@@ -64,7 +84,7 @@ async function syncMilestoneFromChain(dbMilestone, onChainGrantId, onChainMilest
 
   return {
     db: result.rows[0] || dbMilestone,
-    chain,
+    chain: { ...chain, status: nextStatus },
     synced: true,
   };
 }

@@ -8,8 +8,6 @@ import {
   Zap,
   Target,
   X,
-  Plus,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { api, type Grant } from "@/lib/api";
@@ -71,41 +69,36 @@ export default function GrantMatching() {
   );
   const [builderAddress, setBuilderAddress] = useState("");
   const [reviewerAddress, setReviewerAddress] = useState("");
-  const [milestonesDraft, setMilestonesDraft] = useState<DraftMilestone[]>([
+  const [firstMilestone, setFirstMilestone] = useState<DraftMilestone>(
     newDraftMilestone({
       title: "Core Smart Contracts",
       description:
         "Ship and document Soroban grant manager + passport. Acceptance: contracts deployable on testnet, README with build steps, and at least one verified invoke.",
       amountXlm: "5",
-    }),
-    newDraftMilestone({
-      title: "AI Verification Flow",
-      description:
-        "Working submit → AI analyze → approve/release path. Acceptance: builder can submit evidence; admin can refresh AI report against this criterion.",
-      amountXlm: "5",
-    }),
-  ]);
+    })
+  );
 
   const [activeGrant, setActiveGrant] = useState<Grant | null>(null);
   const [escrowOpen, setEscrowOpen] = useState(false);
   const [depositXlm, setDepositXlm] = useState("");
   const [depositBusy, setDepositBusy] = useState(false);
   const [escrowError, setEscrowError] = useState<string | null>(null);
+  /** Guided step after create / add-milestone: deposit this milestone's payout */
+  const [depositStepLabel, setDepositStepLabel] = useState<string | null>(null);
 
   const [milestoneOpen, setMilestoneOpen] = useState(false);
-  const [msTitle, setMsTitle] = useState("Core Smart Contracts");
+  const [msTitle, setMsTitle] = useState("AI Verification Flow");
   const [msDescription, setMsDescription] = useState(
-    "Ship and document Soroban grant manager + passport."
+    "Working submit → AI analyze → approve/release path. Acceptance: builder can submit evidence; admin can refresh AI report against this criterion."
   );
-  const [msAmount, setMsAmount] = useState("2.5");
+  const [msAmount, setMsAmount] = useState("5");
   const [msDeadline, setMsDeadline] = useState("");
   const [msBusy, setMsBusy] = useState(false);
 
-  const budgetFromMilestones = milestonesDraft.reduce((sum, m) => {
-    const n = Number(m.amountXlm);
-    return sum + (Number.isFinite(n) && n > 0 ? n : 0);
-  }, 0);
-  const budgetXlm = budgetFromMilestones > 0 ? String(budgetFromMilestones) : "0";
+  const budgetXlm = (() => {
+    const n = Number(firstMilestone.amountXlm);
+    return Number.isFinite(n) && n > 0 ? String(n) : "0";
+  })();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -160,41 +153,30 @@ export default function GrantMatching() {
         setError("Builder and reviewer addresses are required.");
         return;
       }
-      if (milestonesDraft.length === 0) {
-        setError("Add at least one milestone — AI uses milestone criteria for review.");
-        return;
-      }
 
-      const parsedMilestones = milestonesDraft.map((m, idx) => {
-        const amountStroops = Math.round(Number(m.amountXlm) * 10_000_000);
-        if (!m.title.trim()) {
-          throw new Error(`Milestone ${idx + 1}: title is required`);
-        }
-        if (!m.description.trim()) {
-          throw new Error(
-            `Milestone ${idx + 1}: acceptance criteria (description) is required`
-          );
-        }
-        if (!Number.isFinite(amountStroops) || amountStroops <= 0) {
-          throw new Error(`Milestone ${idx + 1}: enter a valid payout in XLM`);
-        }
-        return {
-          title: m.title.trim(),
-          description: m.description.trim(),
-          amountStroops,
-          amountXlm: Number(m.amountXlm),
-          deadline: m.deadline || null,
-        };
-      });
-
-      const totalBudgetStroops = parsedMilestones.reduce(
-        (s, m) => s + m.amountStroops,
-        0
+      const amountStroops = Math.round(
+        Number(firstMilestone.amountXlm) * 10_000_000
       );
-      if (totalBudgetStroops <= 0) {
-        setError("Milestone payouts must sum to a positive budget.");
-        return;
+      if (!firstMilestone.title.trim()) {
+        throw new Error("First milestone: title is required");
       }
+      if (!firstMilestone.description.trim()) {
+        throw new Error(
+          "First milestone: acceptance criteria (description) is required"
+        );
+      }
+      if (!Number.isFinite(amountStroops) || amountStroops <= 0) {
+        throw new Error("First milestone: enter a valid payout in XLM");
+      }
+
+      const milestone = {
+        title: firstMilestone.title.trim(),
+        description: firstMilestone.description.trim(),
+        amountStroops,
+        amountXlm: Number(firstMilestone.amountXlm),
+        deadline: firstMilestone.deadline || null,
+      };
+      const totalBudgetStroops = amountStroops;
 
       setSubmitting(true);
       await ensureFunded(providerAddress);
@@ -202,12 +184,14 @@ export default function GrantMatching() {
       const meta = await api.uploadMetadata({
         title,
         description,
-        milestones: parsedMilestones.map((m) => ({
-          title: m.title,
-          description: m.description,
-          amountXlm: m.amountXlm,
-          deadline: m.deadline,
-        })),
+        milestones: [
+          {
+            title: milestone.title,
+            description: milestone.description,
+            amountXlm: milestone.amountXlm,
+            deadline: milestone.deadline,
+          },
+        ],
       });
       const unsigned = await api.buildCreateGrant({
         sourcePublicKey: providerAddress,
@@ -238,77 +222,77 @@ export default function GrantMatching() {
       if (onChainGrantId == null) {
         toast.info(
           "Grant created",
-          "On-chain ID pending — milestones could not be attached yet. Refresh and add them from Manage Escrow."
+          "On-chain ID pending — open Manage Escrow after sync to attach the milestone and deposit."
         );
-      } else {
-        await api.indexEvent({
-          eventName: "GrantCreated",
-          payload: {
-            grant_id: onChainGrantId,
-            provider: providerAddress,
-            builder: builderAddress,
-            reviewer: reviewerAddress,
-            total_budget: totalBudgetStroops,
-            milestone_count: parsedMilestones.length,
-          },
-          txHash: submitted.hash,
-        });
-
-        // Attach each milestone on-chain (criteria stored in DB for AI review)
-        for (let i = 0; i < parsedMilestones.length; i++) {
-          const ms = parsedMilestones[i];
-          toast.info(
-            `Confirm add_milestone ${i + 1}/${parsedMilestones.length}`,
-            ms.title
-          );
-          const msUnsigned = await api.buildAddMilestone({
-            sourcePublicKey: providerAddress,
-            providerAddress,
-            onChainGrantId,
-            amountStroops: ms.amountStroops,
-          });
-          const msSubmitted = await signAndSubmit(msUnsigned);
-          const onChainMilestoneId =
-            parseReturnU32(msSubmitted.returnValue) ?? 0;
-
-          await api.createMilestone({
-            grantId: record.id,
-            title: ms.title,
-            description: ms.description,
-            amountStroops: ms.amountStroops,
-            onChainMilestoneId,
-            deadline: ms.deadline,
-            txHash: msSubmitted.hash,
-            status: "pending",
-          });
-
-          await api.indexEvent({
-            eventName: "MilestoneAdded",
-            payload: {
-              grant_id: onChainGrantId,
-              milestone_id: onChainMilestoneId,
-              amount: ms.amountStroops,
-              title: ms.title,
-              description: ms.description,
-            },
-            txHash: msSubmitted.hash,
-          });
-        }
+        await load();
+        return;
       }
 
+      await api.indexEvent({
+        eventName: "GrantCreated",
+        payload: {
+          grant_id: onChainGrantId,
+          provider: providerAddress,
+          builder: builderAddress,
+          reviewer: reviewerAddress,
+          total_budget: totalBudgetStroops,
+          milestone_count: 1,
+        },
+        txHash: submitted.hash,
+      });
+
+      toast.info("Confirm add_milestone in Freighter", milestone.title);
+      const msUnsigned = await api.buildAddMilestone({
+        sourcePublicKey: providerAddress,
+        providerAddress,
+        onChainGrantId,
+        amountStroops: milestone.amountStroops,
+      });
+      const msSubmitted = await signAndSubmit(msUnsigned);
+      const onChainMilestoneId =
+        parseReturnU32(msSubmitted.returnValue) ?? 0;
+
+      await api.createMilestone({
+        grantId: record.id,
+        title: milestone.title,
+        description: milestone.description,
+        amountStroops: milestone.amountStroops,
+        onChainMilestoneId,
+        deadline: milestone.deadline,
+        txHash: msSubmitted.hash,
+        status: "pending",
+      });
+
+      await api.indexEvent({
+        eventName: "MilestoneAdded",
+        payload: {
+          grant_id: onChainGrantId,
+          milestone_id: onChainMilestoneId,
+          amount: milestone.amountStroops,
+          title: milestone.title,
+          description: milestone.description,
+        },
+        txHash: msSubmitted.hash,
+      });
+
       setMessage(
-        `Grant #${record.id} created with ${parsedMilestones.length} milestone(s). Tx: ${submitted.hash}`
+        `Grant #${record.id} + milestone #${onChainMilestoneId} created. Deposit escrow next.`
       );
       toast.success(
-        "Grant + milestones on-chain",
-        `${parsedMilestones.length} criteria ready for AI review`
+        "Grant + first milestone on-chain",
+        "Next: deposit funds for this milestone"
       );
       await load();
-      await openEscrowManager(record);
+      await openEscrowManager(record, {
+        depositXlm: String(milestone.amountXlm),
+        stepLabel: `Deposit ${milestone.amountXlm} XLM for “${milestone.title}”, then add more milestones if needed.`,
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Grant creation failed";
-      setError(msg);
-      toast.error("Create grant failed", msg);
+      const e = err as Error & { hint?: string };
+      const msg = e instanceof Error ? e.message : "Grant creation failed";
+      const display = e?.hint ? `${msg}\n\n${e.hint}` : msg;
+      setError(display);
+      toast.error("Create grant failed", e?.hint || msg);
       if (/Account not found/i.test(msg) && address) {
         try {
           await api.fundFriendbot(address);
@@ -322,9 +306,13 @@ export default function GrantMatching() {
     }
   }
 
-  async function openEscrowManager(grant: Grant) {
+  async function openEscrowManager(
+    grant: Grant,
+    opts?: { depositXlm?: string; stepLabel?: string | null }
+  ) {
     setEscrowError(null);
     setError(null);
+    setDepositStepLabel(opts?.stepLabel ?? null);
 
     if (!isAdmin) {
       toast.error("Admin only", "Only admins can manage escrow and milestones");
@@ -343,25 +331,35 @@ export default function GrantMatching() {
     try {
       const fresh = await api.getGrant(grant.id);
       setActiveGrant(fresh);
-      const budget = Number(fresh.total_budget_stroops || 0);
-      const escrowed = Number(
-        fresh.live_escrow_stroops ?? fresh.escrowed_stroops ?? 0
-      );
-      const remaining = Math.max(budget - escrowed, 0);
-      const defaultDeposit =
-        remaining > 0 ? remaining / 10_000_000 : Number(budgetXlm) || 1;
-      setDepositXlm(String(defaultDeposit));
+      if (opts?.depositXlm != null) {
+        setDepositXlm(opts.depositXlm);
+      } else {
+        const budget = Number(fresh.total_budget_stroops || 0);
+        const escrowed = Number(
+          fresh.live_escrow_stroops ?? fresh.escrowed_stroops ?? 0
+        );
+        const remaining = Math.max(budget - escrowed, 0);
+        const defaultDeposit =
+          remaining > 0 ? remaining / 10_000_000 : Number(budgetXlm) || 1;
+        setDepositXlm(String(defaultDeposit));
+      }
       setEscrowOpen(true);
-      toast.info("Escrow manager opened", `Chain grant #${fresh.on_chain_grant_id}`);
-    } catch (err) {
-      // Fall back to list row if detail fetch fails
-      setActiveGrant(grant);
-      const budget = Number(grant.total_budget_stroops || 0);
-      const escrowed = Number(grant.escrowed_stroops || 0);
-      const remaining = Math.max(budget - escrowed, 0);
-      setDepositXlm(
-        String(remaining > 0 ? remaining / 10_000_000 : Number(budgetXlm) || 1)
+      toast.info(
+        opts?.stepLabel ? "Deposit funds" : "Escrow manager opened",
+        `Chain grant #${fresh.on_chain_grant_id}`
       );
+    } catch (err) {
+      setActiveGrant(grant);
+      if (opts?.depositXlm != null) {
+        setDepositXlm(opts.depositXlm);
+      } else {
+        const budget = Number(grant.total_budget_stroops || 0);
+        const escrowed = Number(grant.escrowed_stroops || 0);
+        const remaining = Math.max(budget - escrowed, 0);
+        setDepositXlm(
+          String(remaining > 0 ? remaining / 10_000_000 : Number(budgetXlm) || 1)
+        );
+      }
       setEscrowOpen(true);
       if (err instanceof Error) setEscrowError(err.message);
     }
@@ -440,6 +438,9 @@ export default function GrantMatching() {
         "Funds deposited to escrow",
         `${stroopsToXlm(amountStroops)} XLM · ${submitted.hash.slice(0, 12)}…`
       );
+      setDepositStepLabel(
+        "Escrow funded. Add another milestone when ready, then deposit its payout."
+      );
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Deposit failed";
@@ -501,12 +502,22 @@ export default function GrantMatching() {
         txHash: submitted.hash,
       });
 
+      const newBudget =
+        Number(activeGrant.total_budget_stroops || 0) + amountStroops;
+      const patched = await api.updateGrant(activeGrant.id, {
+        totalBudgetStroops: newBudget,
+      });
+
       toast.success(
         "Milestone created on-chain",
         `ID ${onChainMilestoneId} · DB #${m.id}`
       );
       setMilestoneOpen(false);
       await load();
+      await openEscrowManager(patched, {
+        depositXlm: String(Number(msAmount)),
+        stepLabel: `Deposit ${msAmount} XLM for “${msTitle}” (or skip if already covered by escrow).`,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Add milestone failed";
       setError(msg);
@@ -527,7 +538,7 @@ export default function GrantMatching() {
         </div>
         <p className="page-desc !mt-1">
           {isAdmin
-            ? "Create the grant on-chain with milestones as payouts + AI acceptance criteria, deposit escrow, then review submissions."
+            ? "Create a grant with the first milestone, deposit that payout into escrow, then add more milestones as you go."
             : "Browse grants and open one to submit your delivery documents for review."}
         </p>
       </div>
@@ -591,123 +602,77 @@ export default function GrantMatching() {
                 className="mt-2 w-full bg-black/60 border border-crucible-border px-3 py-2 text-xs text-crucible-gold tabular-nums"
               />
               <span className="mt-1 block text-[9px] text-zinc-600 normal-case tracking-normal font-sans">
-                Auto-sum of milestone payouts (on-chain total budget).
+                Starts as the first milestone payout. Grows when you add more.
               </span>
             </label>
 
             <div className="space-y-3 border border-crucible-border bg-black/30 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-white">
-                  Milestones / AI criteria
-                </h4>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMilestonesDraft((prev) => [...prev, newDraftMilestone()])
-                  }
-                  className="text-[9px] uppercase tracking-widest text-crucible-gold inline-flex items-center gap-1 hover:text-white"
-                >
-                  <Plus className="w-3 h-3" /> Add milestone
-                </button>
-              </div>
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-white">
+                First milestone / AI criteria
+              </h4>
               <p className="text-[9px] text-zinc-500 font-sans normal-case tracking-normal">
-                Each milestone payout is created on-chain. Description =
-                acceptance criteria the AI scores against.
+                After create you will be asked to deposit this payout. Add more
+                milestones from Manage Escrow next.
               </p>
-              {milestonesDraft.map((ms, idx) => (
-                <div
-                  key={ms.key}
-                  className="border border-crucible-border bg-crucible-bg p-3 space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">
-                      Milestone {idx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={milestonesDraft.length <= 1}
-                      onClick={() =>
-                        setMilestonesDraft((prev) =>
-                          prev.filter((row) => row.key !== ms.key)
-                        )
+              <div className="border border-crucible-border bg-crucible-bg p-3 space-y-2">
+                <input
+                  value={firstMilestone.title}
+                  onChange={(e) =>
+                    setFirstMilestone((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                  placeholder="Title"
+                  className="w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
+                  required
+                />
+                <textarea
+                  value={firstMilestone.description}
+                  onChange={(e) =>
+                    setFirstMilestone((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder="Acceptance criteria for AI + reviewer…"
+                  className="w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white min-h-16"
+                  required
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                    Payout XLM
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      value={firstMilestone.amountXlm}
+                      onChange={(e) =>
+                        setFirstMilestone((prev) => ({
+                          ...prev,
+                          amountXlm: e.target.value,
+                        }))
                       }
-                      className="text-zinc-600 hover:text-crucible-red disabled:opacity-30"
-                      aria-label="Remove milestone"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <input
-                    value={ms.title}
-                    onChange={(e) =>
-                      setMilestonesDraft((prev) =>
-                        prev.map((row) =>
-                          row.key === ms.key
-                            ? { ...row, title: e.target.value }
-                            : row
-                        )
-                      )
-                    }
-                    placeholder="Title"
-                    className="w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
-                    required
-                  />
-                  <textarea
-                    value={ms.description}
-                    onChange={(e) =>
-                      setMilestonesDraft((prev) =>
-                        prev.map((row) =>
-                          row.key === ms.key
-                            ? { ...row, description: e.target.value }
-                            : row
-                        )
-                      )
-                    }
-                    placeholder="Acceptance criteria for AI + reviewer…"
-                    className="w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white min-h-16"
-                    required
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">
-                      Payout XLM
-                      <input
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        value={ms.amountXlm}
-                        onChange={(e) =>
-                          setMilestonesDraft((prev) =>
-                            prev.map((row) =>
-                              row.key === ms.key
-                                ? { ...row, amountXlm: e.target.value }
-                                : row
-                            )
-                          )
-                        }
-                        className="mt-1 w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
-                        required
-                      />
-                    </label>
-                    <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">
-                      Deadline
-                      <input
-                        type="date"
-                        value={ms.deadline}
-                        onChange={(e) =>
-                          setMilestonesDraft((prev) =>
-                            prev.map((row) =>
-                              row.key === ms.key
-                                ? { ...row, deadline: e.target.value }
-                                : row
-                            )
-                          )
-                        }
-                        className="mt-1 w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
-                      />
-                    </label>
-                  </div>
+                      className="mt-1 w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
+                      required
+                    />
+                  </label>
+                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                    Deadline
+                    <input
+                      type="date"
+                      value={firstMilestone.deadline}
+                      onChange={(e) =>
+                        setFirstMilestone((prev) => ({
+                          ...prev,
+                          deadline: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
+                    />
+                  </label>
                 </div>
-              ))}
+              </div>
             </div>
 
             <button
@@ -717,7 +682,7 @@ export default function GrantMatching() {
             >
               {submitting
                 ? "Confirm Freighter prompts…"
-                : "Create Grant + Milestones On-Chain"}
+                : "Create Grant + First Milestone"}
             </button>
 
             {message && (
@@ -842,6 +807,7 @@ export default function GrantMatching() {
               onClick={() => {
                 setEscrowOpen(false);
                 setEscrowError(null);
+                setDepositStepLabel(null);
               }}
               className="absolute top-4 right-4 text-zinc-500 hover:text-white z-10"
             >
@@ -855,6 +821,11 @@ export default function GrantMatching() {
               {activeGrant.on_chain_grant_id ?? "—"} · Provider{" "}
               {shortAddress(activeGrant.provider_address)}
             </p>
+            {depositStepLabel && (
+              <div className="border border-crucible-gold/40 bg-crucible-gold/10 px-3 py-2 text-[10px] text-crucible-gold leading-relaxed">
+                {depositStepLabel}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-black/40 border border-crucible-border p-2">
                 <p className="text-[9px] uppercase text-zinc-500">Budget</p>
@@ -904,7 +875,7 @@ export default function GrantMatching() {
               type="button"
               disabled={depositBusy}
               onClick={() => onDeposit(activeGrant)}
-              className="w-full py-3 border border-crucible-cyan text-crucible-cyan text-xs font-bold uppercase tracking-widest hover:bg-crucible-cyan/10 disabled:opacity-60"
+              className="w-full py-3 bg-crucible-cyan text-black text-xs font-bold uppercase tracking-widest hover:bg-crucible-cyan/90 disabled:opacity-60"
             >
               {depositBusy ? "Confirm in Freighter..." : "Deposit Funds"}
             </button>
@@ -916,7 +887,7 @@ export default function GrantMatching() {
               }}
               className="w-full py-3 bg-white/5 border border-crucible-border text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2"
             >
-              <BrandIcon name="milestone" className="w-3.5 h-3.5" /> Create Milestone
+              <BrandIcon name="milestone" className="w-3.5 h-3.5" /> Add Another Milestone
             </button>
             <Link
               href={`/verification/${activeGrant.id}`}
@@ -951,8 +922,8 @@ export default function GrantMatching() {
               Create Milestone
             </h3>
             <p className="text-[10px] text-zinc-500 leading-relaxed">
-              Acceptance criteria are stored for AI review. Payout amount goes
-              on-chain via <code>add_milestone</code>.
+              After this milestone is on-chain you will be asked to deposit its
+              payout into escrow. Acceptance criteria are stored for AI review.
             </p>
             <label className="block text-[10px] font-bold tracking-widest uppercase">
               Title

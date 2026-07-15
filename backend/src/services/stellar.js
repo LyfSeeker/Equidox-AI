@@ -11,7 +11,17 @@ const {
   Address,
   StrKey,
   Horizon,
+  TimeoutInfinite,
 } = StellarSdk;
+
+/** Valid for Freighter review after prepare; clock skew-safe via RPC time. */
+const DEFAULT_TX_TIMEOUT_SECS = 900;
+
+/** Short-lived caches for read-only Soroban sims (cuts 3 RPC → 1). */
+const READ_ACCOUNT_TTL_MS = 30_000;
+const READ_RESULT_TTL_MS = 8_000;
+let cachedReadAccount = { key: "", account: null, expiresAt: 0 };
+const simulateResultCache = new Map();
 
 function getNetworkPassphrase() {
   return process.env.STELLAR_NETWORK === "mainnet"
@@ -36,6 +46,61 @@ export function getNetworkPassphraseExport() {
 }
 
 /**
+ * Use Soroban RPC ledger close time — not the host clock.
+ * Local clock skew otherwise yields sendTransaction ERROR / txTooLate
+ * before Freighter even signs.
+ */
+async function getNetworkTimebounds(server, timeoutSecs = DEFAULT_TX_TIMEOUT_SECS) {
+  const latest = await server.getLatestLedger();
+  const networkNow = Number(
+    latest.closeTime || Math.floor(Date.now() / 1000)
+  );
+  const ttl = Number(process.env.TX_TIMEOUT_SECS || timeoutSecs);
+  return {
+    minTime: 0,
+    maxTime: networkNow + Math.max(60, ttl),
+  };
+}
+
+async function getCachedReadAccount(server) {
+  const key =
+    process.env.DEFAULT_READ_ACCOUNT ||
+    "GCFCVEY6YOO24HAI2JCX6BH2RDAJRMSQJODOGUY6H4NMNVQR3KYV446Z";
+  const now = Date.now();
+  if (
+    cachedReadAccount.account &&
+    cachedReadAccount.key === key &&
+    cachedReadAccount.expiresAt > now
+  ) {
+    return cachedReadAccount.account;
+  }
+  const account = await server.getAccount(key);
+  cachedReadAccount = { key, account, expiresAt: now + READ_ACCOUNT_TTL_MS };
+  return account;
+}
+
+function getCachedSimulate(cacheKey) {
+  const hit = simulateResultCache.get(cacheKey);
+  if (!hit) return undefined;
+  if (hit.expiresAt <= Date.now()) {
+    simulateResultCache.delete(cacheKey);
+    return undefined;
+  }
+  return hit.value;
+}
+
+function setCachedSimulate(cacheKey, value) {
+  simulateResultCache.set(cacheKey, {
+    value,
+    expiresAt: Date.now() + READ_RESULT_TTL_MS,
+  });
+  if (simulateResultCache.size > 200) {
+    const first = simulateResultCache.keys().next().value;
+    simulateResultCache.delete(first);
+  }
+}
+
+/**
  * Builds an unsigned Soroban transaction for Freighter signing.
  */
 export async function buildContractInvoke({
@@ -47,13 +112,14 @@ export async function buildContractInvoke({
   const server = getServer();
   const sourceAccount = await server.getAccount(sourcePublicKey);
   const contract = new Contract(contractId);
+  const timebounds = await getNetworkTimebounds(server);
 
   let transaction = new TransactionBuilder(sourceAccount, {
     fee: BASE_FEE,
     networkPassphrase: getNetworkPassphrase(),
+    timebounds,
   })
     .addOperation(contract.call(method, ...args))
-    .setTimeout(180)
     .build();
 
   transaction = await server.prepareTransaction(transaction);
@@ -102,9 +168,78 @@ export function bytesN32ToScVal(hexHash) {
   return nativeToScVal(buf);
 }
 
+function explainTransactionResult(result) {
+  if (!result) return null;
+  try {
+    const out = {
+      code: result.result().switch().name,
+    };
+    try {
+      out.feeCharged = result.feeCharged().toString();
+    } catch {
+      // ignore
+    }
+    try {
+      if (typeof result.result().results === "function") {
+        out.operations = result.result().results().map((op) => {
+          try {
+            const tr = op.tr();
+            const name = tr.switch().name;
+            try {
+              if (name === "invokeHostFunction") {
+                return {
+                  op: name,
+                  result: tr.invokeHostFunctionResult().switch().name,
+                };
+              }
+            } catch {
+              // fall through
+            }
+            return { op: name };
+          } catch {
+            return { op: "unknown" };
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+    try {
+      out.xdr = result.toXDR("base64");
+    } catch {
+      // ignore
+    }
+    return out;
+  } catch (err) {
+    try {
+      return { xdr: result.toXDR("base64"), parseError: err.message };
+    } catch {
+      return { parseError: err.message };
+    }
+  }
+}
+
+function hintForTxCode(code) {
+  switch (code) {
+    case "txTooLate":
+      return "Transaction expired before submit. Confirm Freighter quickly, or sync this machine's clock (NTP).";
+    case "txTooEarly":
+      return "Transaction minTime is in the future — check system clock / NTP.";
+    case "txBadAuth":
+    case "txBadAuthExtra":
+      return "Signature missing or Freighter is on the wrong network. Use Stellar Testnet and approve the prompt.";
+    case "txBadSeq":
+      return "Account sequence conflict — wait a few seconds and retry.";
+    case "txInsufficientBalance":
+    case "txInsufficientFee":
+      return "Wallet needs more XLM for fees, or the fee was too low.";
+    default:
+      return null;
+  }
+}
+
 function jsonSafe(value) {
   if (typeof value === "bigint") {
-    // Prefer number when safe; otherwise string
     const asNum = Number(value);
     return Number.isSafeInteger(asNum) ? asNum : value.toString();
   }
@@ -115,10 +250,16 @@ function jsonSafe(value) {
     return value.map(jsonSafe);
   }
   if (value && typeof value === "object") {
-    // Avoid dumping huge SDK response objects with non-JSON types
+    // TransactionResult / XDR enums: decode instead of "[object Object]"
+    if (typeof value.result === "function" && typeof value.toXDR === "function") {
+      return explainTransactionResult(value);
+    }
     if (typeof value.toXDR === "function" || typeof value.switch === "function") {
       try {
-        return value.toString();
+        if (typeof value.switch === "function") {
+          return value.switch().name;
+        }
+        return value.toXDR("base64");
       } catch {
         return null;
       }
@@ -136,15 +277,31 @@ function jsonSafe(value) {
   return value;
 }
 
+function formatSendFailure(response) {
+  const explained = explainTransactionResult(response.errorResult);
+  const code = explained?.code || null;
+  const hint = hintForTxCode(code);
+  const payload = {
+    status: response.status,
+    hash: response.hash,
+    latestLedger: response.latestLedger,
+    errorResult: explained,
+  };
+  if (hint) payload.hint = hint;
+  return { code, hint, message: `Transaction failed: ${JSON.stringify(payload)}` };
+}
+
 export async function submitTransaction(signedXdr) {
   const server = getServer();
   const tx = TransactionBuilder.fromXDR(signedXdr, getNetworkPassphrase());
   const response = await server.sendTransaction(tx);
 
   if (response.status === "ERROR") {
-    throw new Error(
-      `Transaction failed: ${JSON.stringify(jsonSafe(response))}`
-    );
+    const failure = formatSendFailure(response);
+    const err = new Error(failure.message);
+    err.code = failure.code;
+    err.hint = failure.hint;
+    throw err;
   }
 
   let getResponse = await server.getTransaction(response.hash);
@@ -203,29 +360,41 @@ export async function fundWithFriendbot(publicKey) {
 }
 
 async function simulateRead(contractId, method, args = []) {
+  const cacheKey = `${contractId}:${method}:${JSON.stringify(
+    args.map((a) => {
+      try {
+        return typeof a?.toXDR === "function" ? a.toXDR("base64") : String(a);
+      } catch {
+        return String(a);
+      }
+    })
+  )}`;
+  const cached = getCachedSimulate(cacheKey);
+  if (cached !== undefined) return cached;
+
   const server = getServer();
   const contract = new Contract(contractId);
-  const account = await server.getAccount(
-    process.env.DEFAULT_READ_ACCOUNT ||
-      "GCFCVEY6YOO24HAI2JCX6BH2RDAJRMSQJODOGUY6H4NMNVQR3KYV446Z"
-  );
+  const account = await getCachedReadAccount(server);
 
+  // TimeoutInfinite avoids an extra getLatestLedger RPC on every read.
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: getNetworkPassphrase(),
   })
     .addOperation(contract.call(method, ...args))
-    .setTimeout(180)
+    .setTimeout(TimeoutInfinite)
     .build();
 
   const sim = await server.simulateTransaction(tx);
   if (SorobanRpc.Api.isSimulationError(sim)) {
     throw new Error(sim.error || "Simulation failed");
   }
+  let value = null;
   if (SorobanRpc.Api.isSimulationSuccess(sim) && sim.result?.retval) {
-    return scValToNative(sim.result.retval);
+    value = scValToNative(sim.result.retval);
   }
-  return null;
+  setCachedSimulate(cacheKey, value);
+  return value;
 }
 
 function normalizeAddress(val) {

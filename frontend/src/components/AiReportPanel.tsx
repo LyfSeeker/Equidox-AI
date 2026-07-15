@@ -118,7 +118,12 @@ export default function AiReportPanel({
           <Badge tone="zinc">{milestoneTitle || "Milestone"}</Badge>
           <Badge tone="zinc">Status · {milestoneStatus || "—"}</Badge>
           <Badge tone="cyan">
-            {(analysis.provider || analysis.source || "ai").toUpperCase()}
+            {(
+              analysis.providerName ||
+              analysis.source ||
+              analysis.provider ||
+              "ai"
+            ).toUpperCase()}
             {analysis.model ? ` · ${analysis.model}` : ""}
           </Badge>
         </div>

@@ -236,6 +236,7 @@ function normalizeReport(raw, meta) {
     documentation: meta.documentation || null,
     source: meta.providerName || meta.providerId || "ai",
     provider: meta.providerId || "ai",
+    providerName: meta.providerName || meta.providerId || "ai",
     model: meta.model,
     prompt_version: PROMPT_VERSION,
     latency_ms: meta.latencyMs,
@@ -422,9 +423,15 @@ async function providersInOrder(preferredId) {
   }
   const primary = cfg.providers.find((x) => x.id === cfg.primaryProviderId);
   if (primary && !ordered.some((x) => x.id === primary.id)) ordered.push(primary);
-  for (const p of cfg.providers) {
-    if (!ordered.some((x) => x.id === p.id)) ordered.push(p);
-  }
+  // Prefer Kimi / custom primary over Gemini/DeepSeek when both exist
+  const preferredOrder = ["kimi", "custom", "deepseek", "openai", "gemini"];
+  const rest = cfg.providers
+    .filter((p) => !ordered.some((x) => x.id === p.id))
+    .sort(
+      (a, b) =>
+        preferredOrder.indexOf(a.id) - preferredOrder.indexOf(b.id)
+    );
+  ordered.push(...rest);
   return ordered.filter((p) => p.apiKey && p.baseUrl && p.model);
 }
 

@@ -126,7 +126,7 @@ export default function Topbar() {
 
   useEffect(() => {
     void loadEvents();
-    const t = setInterval(() => void loadEvents(), 20_000);
+    const t = setInterval(() => void loadEvents(), 45_000);
     return () => clearInterval(t);
   }, [loadEvents]);
 

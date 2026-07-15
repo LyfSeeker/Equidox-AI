@@ -177,6 +177,7 @@ export type Analysis = {
   documentation?: Record<string, unknown> | null;
   source?: string;
   provider?: string;
+  providerName?: string;
   model?: string;
   prompt_version?: string;
   latency_ms?: number;
