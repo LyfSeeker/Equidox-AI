@@ -41,7 +41,6 @@ const TECH = [
   "On-chain reputation",
   "Grant reviews",
   "Transparent funding",
-  "Hackathon ready",
   "Testnet live",
 ];
 
@@ -66,7 +65,7 @@ const PILLARS = [
   {
     icon: ShieldCheck,
     title: "Stellar Payouts",
-    body: "Milestone amounts lock on-chain. Release only after AI hash + reviewer approval — never a blind wire.",
+    body: "Milestone amounts lock on-chain. Release only after AI hash + reviewer approval - never a blind wire.",
     tone: "gold" as const,
   },
   {
@@ -173,7 +172,7 @@ export default function Home() {
             className="text-base md:text-lg text-zinc-500 font-sans max-w-xl mx-auto mb-8 leading-relaxed"
           >
             AI verifies delivery, escrow pays in stages on Stellar, and every
-            builder earns verified on-chain reputation — never all-or-nothing
+            builder earns verified on-chain reputation - never all-or-nothing
             funding.
           </motion.p>
 
@@ -189,12 +188,6 @@ export default function Home() {
             </Link>
           </motion.div>
 
-          <motion.p
-            variants={heroItem}
-            className="mt-6 text-[10px] uppercase tracking-widest text-zinc-600"
-          >
-            Policy-bound grant payouts · Freighter Testnet ready
-          </motion.p>
         </motion.div>
       </section>
 
@@ -214,7 +207,7 @@ export default function Home() {
           </h2>
           <p className="text-zinc-500 font-sans text-base md:text-lg leading-relaxed">
             We&apos;ve watched teams submit vaporware and get paid anyway. Equidox
-            puts analysis, escrow, and reputation in one industrial loop — on
+            puts analysis, escrow, and reputation in one industrial loop - on
             Stellar.
           </p>
         </motion.div>

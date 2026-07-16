@@ -68,11 +68,11 @@ export default function Sidebar() {
       }`}
     >
       <div className="h-16 flex items-center justify-between px-3 border-b border-crucible-border gap-2">
-        <Link href="/home" className="flex items-center gap-3 min-w-0 overflow-hidden">
+        <Link href="/home" className="flex items-center gap-1 min-w-0 overflow-hidden">
           <img
             src="/logo.png"
             alt="Equidox"
-            className="w-8 h-8 object-contain shrink-0"
+            className="w-10 h-10 object-contain shrink-0"
           />
           <AnimatePresence initial={false}>
             {!collapsed && (

@@ -3,6 +3,7 @@ import { Space_Mono, Inter, Outfit } from "next/font/google";
 import "./globals.css";
 import AppChrome from "@/components/AppChrome";
 import AuthGate from "@/components/AuthGate";
+import ParticleBackground from "@/components/ParticleBackground";
 import { AuthProvider } from "@/context/AuthContext";
 import { WalletProvider } from "@/context/WalletContext";
 import { ToastProvider } from "@/context/ToastContext";
@@ -24,7 +25,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Equidox | Platform Validation",
+  title: "Equidox AI | Milestone Verification",
   description: "AI-powered milestone verification and grant distribution on Stellar",
 };
 
@@ -38,7 +39,8 @@ export default function RootLayout({
       lang="en"
       className={`${spaceMono.variable} ${inter.variable} ${outfit.variable} h-full antialiased dark`}
     >
-      <body className="h-full flex bg-grid-pattern text-foreground font-mono overflow-hidden">
+      <body className="h-full flex bg-crucible-bg text-foreground font-mono overflow-hidden relative">
+        <ParticleBackground />
         <AuthProvider>
           <WalletProvider>
             <ToastProvider>
