@@ -27,6 +27,9 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "Equidox AI | Milestone Verification",
   description: "AI-powered milestone verification and grant distribution on Stellar",
+  icons: {
+    icon: "/icon.png?v=2",
+  },
 };
 
 export default function RootLayout({

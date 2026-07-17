@@ -2,7 +2,7 @@ import { isAdminUser, type KeycloakUser } from "@/lib/keycloak";
 
 /** Default post-login destination by Keycloak role. */
 export function homePathForRole(isAdmin: boolean): string {
-  return isAdmin ? "/dashboard" : "/submit";
+  return "/home";
 }
 
 /**

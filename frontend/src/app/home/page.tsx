@@ -52,7 +52,6 @@ const AGENT_TYPES = [
   "Reputation that travels",
   "Built for builders",
   "Designed for reviewers",
-  "Industrial agents",
 ];
 
 const PILLARS = [
@@ -153,7 +152,7 @@ export default function Home() {
             className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 border border-crucible-border bg-crucible-bg text-[10px] font-bold uppercase tracking-widest text-zinc-300"
           >
             <Zap className="w-3 h-3 text-crucible-gold" />
-            Stellar · Soroban · Industrial agents
+            Stellar · Soroban
           </motion.div>
 
           <motion.h1
@@ -261,8 +260,8 @@ export default function Home() {
           </h2>
           <p className="text-zinc-500 font-sans mb-8 leading-relaxed">
             Whether you&apos;re delivering a milestone or reviewing one, every
-            step stays inside the grant loop — escrow, AI hash, and on-chain
-            release.
+            step stays inside the grant loop - escrow, AI hash, and on-chain
+            payouts are strictly linked.
           </p>
 
           <div className="inline-flex border border-crucible-border p-1 mb-8">
