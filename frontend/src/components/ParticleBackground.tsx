@@ -2,7 +2,13 @@
 
 import { useEffect, useRef } from "react";
 
-export default function ParticleBackground() {
+export default function ParticleBackground({
+  className = "fixed inset-0 pointer-events-none -z-50 bg-transparent",
+  contained = false,
+}: {
+  className?: string;
+  contained?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -15,8 +21,15 @@ export default function ParticleBackground() {
     let animationFrameId: number;
 
     const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const bounds = contained ? canvas.getBoundingClientRect() : null;
+      canvas.width = Math.max(
+        1,
+        Math.round(bounds?.width || window.innerWidth)
+      );
+      canvas.height = Math.max(
+        1,
+        Math.round(bounds?.height || window.innerHeight)
+      );
       init();
     };
 
@@ -72,20 +85,23 @@ export default function ParticleBackground() {
       animationFrameId = requestAnimationFrame(animate);
     };
 
+    const resizeObserver = contained ? new ResizeObserver(resizeCanvas) : null;
+    resizeObserver?.observe(canvas);
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
     animate();
 
     return () => {
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", resizeCanvas);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [contained]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none -z-50 bg-transparent"
+      className={className}
     />
   );
 }
