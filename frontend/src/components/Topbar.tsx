@@ -253,11 +253,11 @@ export default function Topbar() {
   }
 
   return (
-    <header className="relative z-50 h-16 flex items-center justify-between px-4 md:px-6 border-b border-crucible-border bg-crucible-bg/85 backdrop-blur-xl shrink-0 gap-3 isolate">
+    <header className="relative z-50 h-16 flex items-center justify-between px-2 sm:px-4 md:px-6 border-b border-crucible-border bg-crucible-bg/85 backdrop-blur-xl shrink-0 gap-1.5 sm:gap-3 isolate">
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <div className="badge badge-cyan shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-crucible-cyan animate-pulse" />
-          Stellar Testnet
+          <span className="hidden sm:inline">Stellar Testnet</span>
         </div>
 
         {!freighterAvailable && (
@@ -283,7 +283,7 @@ export default function Topbar() {
         )}
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <div className="relative" ref={notifRef}>
           <button
             type="button"
@@ -472,7 +472,11 @@ export default function Topbar() {
           >
             <Wallet className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{shortAddress(address)}</span>
-            {funded && <span className="badge badge-cyan !py-0.5">Funded</span>}
+            {funded && (
+              <span className="badge badge-cyan !py-0.5 hidden sm:inline-flex">
+                Funded
+              </span>
+            )}
           </div>
         ) : (
           <button
@@ -497,7 +501,7 @@ export default function Topbar() {
               setNotifOpen(false);
               setProfileOpen((v) => !v);
             }}
-            className="h-10 px-3 rounded-lg border border-crucible-border bg-black/40 text-zinc-300 text-xs uppercase tracking-wide flex items-center gap-2 hover:border-crucible-gold/30 transition-colors"
+            className="h-10 px-2 sm:px-3 rounded-lg border border-crucible-border bg-black/40 text-zinc-300 text-xs uppercase tracking-wide flex items-center gap-1.5 sm:gap-2 hover:border-crucible-gold/30 transition-colors"
             aria-expanded={profileOpen}
             aria-haspopup="menu"
           >
@@ -512,7 +516,7 @@ export default function Topbar() {
             >
               {isAdmin ? "ADMIN" : "USER"}
             </span>
-            <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+            <ChevronDown className="w-3.5 h-3.5 text-zinc-500 hidden sm:block" />
           </button>
 
           <AnimatePresence>

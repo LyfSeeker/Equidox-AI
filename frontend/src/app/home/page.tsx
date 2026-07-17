@@ -1,40 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
+import Link from "next/link";
+import dynamic from "next/dynamic";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import ParticleBackground from "@/components/ParticleBackground";
+import {
+  Activity,
+  ArrowDown,
   ArrowRight,
   Bot,
-  ShieldCheck,
-  Activity,
+  Check,
   ChevronDown,
-  Zap,
-  Wallet,
-  FileText,
+  CircleDollarSign,
+  Code2,
+  FileCheck2,
   Fingerprint,
+  Orbit,
+  ShieldCheck,
+  Sparkles,
+  Wallet,
+  Zap,
 } from "lucide-react";
+import styles from "./home.module.css";
 
-const ease = [0.22, 1, 0.36, 1] as const;
+const EquidoxOrb = dynamic(() => import("@/components/EquidoxOrb"), {
+  ssr: false,
+});
 
-const heroContainer: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.09, delayChildren: 0.06 },
-  },
-};
-
-const heroItem: Variants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.55, ease },
-  },
-};
-
-const TECH = [
+const SIGNALS = [
   "Milestone escrow",
   "AI verification",
   "Stellar payouts",
@@ -42,9 +43,6 @@ const TECH = [
   "Grant reviews",
   "Transparent funding",
   "Testnet live",
-];
-
-const AGENT_TYPES = [
   "Ship · Verify · Get paid",
   "No blind grants",
   "Evidence before escrow",
@@ -56,24 +54,70 @@ const AGENT_TYPES = [
 
 const PILLARS = [
   {
+    number: "01",
     icon: Bot,
     title: "AI Analysis",
     body: "Repos, docs, and deploys scored into a structured verification report before anyone touches escrow.",
-    tone: "cyan" as const,
+    stat: "Structured verification",
   },
   {
+    number: "02",
     icon: ShieldCheck,
     title: "Stellar Payouts",
     body: "Milestone amounts lock on-chain. Release only after AI hash + reviewer approval - never a blind wire.",
-    tone: "gold" as const,
+    stat: "Soroban escrow",
   },
   {
+    number: "03",
     icon: Fingerprint,
     title: "On-chain Reputation",
     body: "Every paid milestone updates verified delivery history you can carry across grants and hackathons.",
-    tone: "gold" as const,
+    stat: "Builder Passport",
   },
 ];
+
+const FLOW = {
+  builder: [
+    {
+      icon: Code2,
+      label: "Connect",
+      title: "Connect Freighter & open your grant",
+      body: "Use your Stellar wallet to enter the grant and select the milestone you are ready to deliver.",
+    },
+    {
+      icon: FileCheck2,
+      label: "Deliver",
+      title: "Share repo, demo, docs, and delivery notes",
+      body: "Your delivery details are hashed and submitted on-chain for a transparent review.",
+    },
+    {
+      icon: CircleDollarSign,
+      label: "Verify",
+      title: "Wait for AI + admin — release updates reputation",
+      body: "Approval releases escrow to your wallet and updates your portable on-chain reputation.",
+    },
+  ],
+  admin: [
+    {
+      icon: Wallet,
+      label: "Fund",
+      title: "Fund escrow, then open Review",
+      body: "Define milestone acceptance criteria and lock its payout in Soroban escrow.",
+    },
+    {
+      icon: Bot,
+      label: "Analyze",
+      title: "Run AI report and inspect the full delivery",
+      body: "Review the submitted repo, docs, deployment, evidence scores, risks, and recommendation.",
+    },
+    {
+      icon: ShieldCheck,
+      label: "Decide",
+      title: "Approve & release — or reject for resubmit",
+      body: "Human judgment remains final while every decision stays connected to on-chain evidence.",
+    },
+  ],
+} as const;
 
 const FAQ = [
   {
@@ -98,329 +142,510 @@ const FAQ = [
   },
 ];
 
-function Marquee({
-  items,
-  className = "",
-  reverse = false,
+function MagneticLink({
+  href,
+  children,
+  primary = false,
 }: {
-  items: string[];
-  className?: string;
-  reverse?: boolean;
+  href: string;
+  children: React.ReactNode;
+  primary?: boolean;
 }) {
-  const loop = [...items, ...items];
+  const ref = useRef<HTMLAnchorElement>(null);
+
+  const move = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    gsap.to(ref.current, {
+      x: (event.clientX - rect.left - rect.width / 2) * 0.12,
+      y: (event.clientY - rect.top - rect.height / 2) * 0.16,
+      duration: 0.35,
+      ease: "power2.out",
+    });
+  };
+
+  const reset = () => {
+    if (ref.current) {
+      gsap.to(ref.current, { x: 0, y: 0, duration: 0.5, ease: "elastic.out(1, .4)" });
+    }
+  };
+
   return (
-    <div
-      className={`overflow-hidden border-y border-crucible-border bg-crucible-bg/80 ${className}`}
+    <Link
+      ref={ref}
+      href={href}
+      onMouseMove={move}
+      onMouseLeave={reset}
+      className={`${styles.magnetic} ${primary ? styles.primaryCta : styles.secondaryCta}`}
     >
-      <div
-        className={`eq-marquee eq-marquee-slow ${reverse ? "eq-marquee-reverse" : ""} gap-10 py-4`}
-      >
-        {loop.map((label, i) => (
-          <span
-            key={`${label}-${i}`}
-            className="text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500 whitespace-nowrap"
-          >
-            <span className="text-crucible-gold/80">✦</span> {label}
-          </span>
-        ))}
-      </div>
-    </div>
+      {children}
+    </Link>
   );
 }
 
 export default function Home() {
-  const [role, setRole] = useState<"builder" | "admin">("builder");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [role, setRole] = useState<keyof typeof FLOW>("builder");
+  const [activeStep, setActiveStep] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [pointer, setPointer] = useState({ x: 50, y: 30 });
+  const activeFlow = useMemo(() => FLOW[role], [role]);
+
+  useEffect(() => {
+    gsap.registerPlugin(ScrollTrigger);
+    const root = rootRef.current;
+    if (!root) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+    const scrollContainer = root.closest("main") as HTMLElement | null;
+    const scroller = scrollContainer || undefined;
+
+    const ctx = gsap.context(() => {
+      gsap
+        .timeline({ defaults: { ease: "power3.out" } })
+        .from("[data-hero-kicker]", { opacity: 0, y: 16, duration: 0.5 })
+        .from(
+          "[data-hero-line]",
+          { yPercent: 115, rotate: 2, duration: 0.95, stagger: 0.1 },
+          "-=.2"
+        )
+        .from("[data-hero-copy]", { opacity: 0, y: 24, duration: 0.65 }, "-=.45")
+        .from("[data-hero-actions]", { opacity: 0, y: 18, duration: 0.55 }, "-=.4")
+        .from("[data-orb]", { opacity: 0, scale: 0.82, duration: 1.1 }, "-=.9");
+
+      gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((element) => {
+        gsap.from(element, {
+          opacity: 0,
+          y: 56,
+          duration: 0.85,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: element,
+            scroller,
+            start: "top 86%",
+            once: true,
+          },
+        });
+      });
+
+      gsap.utils.toArray<HTMLElement>("[data-card]").forEach((card, index) => {
+        gsap.from(card, {
+          opacity: 0,
+          y: 44,
+          rotateX: 6,
+          duration: 0.8,
+          delay: index * 0.08,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: card,
+            scroller,
+            start: "top 88%",
+            once: true,
+          },
+        });
+      });
+
+      ScrollTrigger.refresh();
+    }, root);
+
+    return () => ctx.revert();
+  }, []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const scrollContainer = root?.closest("main") as HTMLElement | null;
+    const hero = root?.querySelector<HTMLElement>("[data-hero]");
+    if (!root || !scrollContainer || !hero) return;
+
+    let settleTimer = 0;
+    let settleFrame = 0;
+
+    const settleViewport = () => {
+      if (scrollContainer.scrollTop < hero.offsetHeight * 0.5) {
+        scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+      }
+      ScrollTrigger.refresh();
+    };
+
+    const handleViewportResize = () => {
+      window.cancelAnimationFrame(settleFrame);
+      window.clearTimeout(settleTimer);
+
+      settleFrame = window.requestAnimationFrame(settleViewport);
+      settleTimer = window.setTimeout(settleViewport, 300);
+    };
+
+    window.addEventListener("resize", handleViewportResize);
+    window.visualViewport?.addEventListener("resize", handleViewportResize);
+
+    return () => {
+      window.cancelAnimationFrame(settleFrame);
+      window.clearTimeout(settleTimer);
+      window.removeEventListener("resize", handleViewportResize);
+      window.visualViewport?.removeEventListener("resize", handleViewportResize);
+    };
+  }, []);
+
+  const onPointerMove = (event: MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setPointer({
+      x: ((event.clientX - rect.left) / rect.width) * 100,
+      y: ((event.clientY - rect.top) / rect.height) * 100,
+    });
+  };
 
   return (
-    <div className="min-h-full flex flex-col font-mono relative text-zinc-400 -mx-4 md:-mx-8 -my-4 md:-my-8">
-      {/* Hero */}
-      <section className="relative overflow-hidden px-4 md:px-8 pt-16 md:pt-24 pb-16 md:pb-24">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.12]">
-          <div className="absolute left-1/2 top-1/3 -translate-x-1/2 w-[520px] h-[520px] border border-crucible-border rounded-full" />
-          <div className="absolute left-1/2 top-1/3 -translate-x-1/2 w-[760px] h-[760px] border border-crucible-border rounded-full" />
-        </div>
+    <div
+      ref={rootRef}
+      onMouseMove={onPointerMove}
+      className={styles.home}
+      style={
+        {
+          "--pointer-x": `${pointer.x}%`,
+          "--pointer-y": `${pointer.y}%`,
+        } as React.CSSProperties
+      }
+    >
+      <div className={styles.pointerGlow} />
 
-        <motion.div
-          variants={heroContainer}
-          initial="hidden"
-          animate="visible"
-          className="relative z-0 max-w-3xl mx-auto text-center"
-        >
-          <motion.div
-            variants={heroItem}
-            className="inline-flex items-center gap-2 px-3 py-1.5 mb-6 border border-crucible-border bg-crucible-bg text-[10px] font-bold uppercase tracking-widest text-zinc-300"
-          >
-            <Zap className="w-3 h-3 text-crucible-gold" />
+      <section data-hero className={styles.hero}>
+        <ParticleBackground className={styles.heroParticles} contained />
+        <div className={styles.heroGrid} />
+        <div className={styles.heroCopy}>
+          <div data-hero-kicker className={styles.eyebrow}>
+            <span className={styles.liveDot} />
             Stellar · Soroban
-          </motion.div>
+          </div>
 
-          <motion.h1
-            variants={heroItem}
-            className="text-4xl md:text-6xl font-bold text-white uppercase tracking-tight leading-[1.05] mb-5"
-          >
-            Let milestones{" "}
-            <span className="text-crucible-gold italic font-serif normal-case tracking-normal">
-              prove
-            </span>{" "}
-            themselves.
-          </motion.h1>
+          <h1 className={styles.heroTitle}>
+            <span className={styles.lineMask}>
+              <span data-hero-line className={styles.combinedTitleLine}>
+                Let milestones <span className={styles.proveWord}>prove</span>
+              </span>
+            </span>
+            <span className={styles.lineMask}>
+              <span data-hero-line className={styles.themselvesWord}>
+                themselves.
+              </span>
+            </span>
+          </h1>
 
-          <motion.p
-            variants={heroItem}
-            className="text-base md:text-lg text-zinc-500 font-sans max-w-xl mx-auto mb-8 leading-relaxed"
-          >
+          <p data-hero-copy className={styles.heroBody}>
             AI verifies delivery, escrow pays in stages on Stellar, and every
             builder earns verified on-chain reputation - never all-or-nothing
             funding.
-          </motion.p>
+          </p>
 
-          <motion.div
-            variants={heroItem}
-            className="flex flex-col sm:flex-row gap-3 justify-center"
-          >
-            <Link href="/dashboard" className="btn btn-primary px-8 py-3.5">
-              Start Verifying <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link href="/grants" className="btn btn-secondary px-8 py-3.5">
-              Browse Grants
-            </Link>
-          </motion.div>
+          <div data-hero-actions className={styles.heroActions}>
+            <MagneticLink href="/dashboard" primary>
+              Start verifying <ArrowRight size={15} />
+            </MagneticLink>
+            <MagneticLink href="/grants">
+              Browse grants <Orbit size={15} />
+            </MagneticLink>
+          </div>
 
-        </motion.div>
+          <div className={styles.heroMeta}>
+            <span>01 / Evidence</span>
+            <span>02 / Intelligence</span>
+            <span>03 / Settlement</span>
+          </div>
+        </div>
+
+        <div className={styles.orbitAnchor}>
+          <div data-orbit-shell className={styles.orbitShell}>
+            <div data-orb className={styles.orbStage}>
+              <EquidoxOrb />
+              <div className={`${styles.orbitLabel} ${styles.orbitLabelTop}`}>
+                <span>AI confidence</span>
+                <strong>VERIFIED</strong>
+              </div>
+              <div className={`${styles.orbitLabel} ${styles.orbitLabelBottom}`}>
+                <span>Escrow state</span>
+                <strong>LOCKED</strong>
+              </div>
+              <div className={styles.orbCore}>
+                <Zap size={16} />
+                <span>EQX</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <a href="#experience" className={styles.scrollCue}>
+          Scroll to verify <ArrowDown size={13} />
+        </a>
       </section>
 
-      <Marquee items={TECH} />
+      <div className={styles.signalRail}>
+        <div className={styles.signalTrack}>
+          {[...SIGNALS, ...SIGNALS].map((signal, index) => (
+            <span key={`${signal}-${index}`}>
+              <Sparkles size={11} /> {signal}
+            </span>
+          ))}
+        </div>
+      </div>
 
-      {/* Why */}
-      <section className="px-4 md:px-8 py-20 md:py-28">
-        <motion.div
-          initial={{ opacity: 0, y: 28 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.6, ease }}
-          className="max-w-3xl mx-auto text-center mb-14"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-white uppercase tracking-tight mb-4">
-            Because blind grants shouldn&apos;t be the default
+      <section id="experience" className={styles.manifesto}>
+        <div data-reveal className={styles.sectionAside}>
+          <div className={styles.sectionIndex}>
+            <span>01</span>
+            <p>The trust problem</p>
+          </div>
+          <div className={styles.proofMatrix} aria-hidden="true">
+            <div className={styles.matrixGrid} />
+            <div className={styles.matrixFrame} />
+            <div className={styles.matrixFrame} />
+            <div className={styles.matrixFrame} />
+            <div className={styles.matrixScan} />
+            <div className={styles.matrixCore}>
+              <ShieldCheck size={24} />
+              <strong>PROOF</strong>
+            </div>
+            <span className={`${styles.matrixCorner} ${styles.matrixCornerTl}`}>
+              01
+            </span>
+            <span className={`${styles.matrixCorner} ${styles.matrixCornerTr}`}>
+              CLAIM
+            </span>
+            <span className={`${styles.matrixCorner} ${styles.matrixCornerBl}`}>
+              HASH
+            </span>
+            <span className={`${styles.matrixCorner} ${styles.matrixCornerBr}`}>
+              VALID
+            </span>
+          </div>
+        </div>
+        <div data-reveal className={styles.manifestoCopy}>
+          <p className={styles.overline}>Why Equidox</p>
+          <h2>
+            Because blind grants shouldn&apos;t be{" "}
+            <em>the default.</em>
           </h2>
-          <p className="text-zinc-500 font-sans text-base md:text-lg leading-relaxed">
-            We&apos;ve watched teams submit vaporware and get paid anyway. Equidox
-            puts analysis, escrow, and reputation in one industrial loop - on
-            Stellar.
+          <p>
+            We&apos;ve watched teams submit vaporware and get paid anyway.
+            Equidox puts analysis, escrow, and reputation in one industrial
+            loop - on Stellar.
           </p>
-        </motion.div>
+        </div>
+      </section>
 
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-5">
-          {PILLARS.map((p, i) => {
-            const Icon = p.icon;
+      <section className={styles.pillarsSection}>
+        <div className={styles.pillarGrid}>
+          {PILLARS.map((pillar) => {
+            const Icon = pillar.icon;
             return (
-              <motion.div
-                key={p.title}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.08, ease }}
-                className="panel-border p-7"
-              >
-                <div
-                  className={`w-11 h-11 border border-crucible-border bg-black/40 flex items-center justify-center mb-5 ${
-                    p.tone === "cyan"
-                      ? "text-crucible-cyan"
-                      : "text-crucible-gold"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" strokeWidth={1.6} />
+              <article data-card key={pillar.number} className={styles.pillarCard}>
+                <div className={styles.cardTopline}>
+                  <span>{pillar.number}</span>
+                  <Icon size={20} />
                 </div>
-                <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-3">
-                  {p.title}
-                </h3>
-                <p className="text-sm text-zinc-500 font-sans leading-relaxed">
-                  {p.body}
-                </p>
-              </motion.div>
+                <div>
+                  <h3>{pillar.title}</h3>
+                  <p>{pillar.body}</p>
+                </div>
+                <div className={styles.cardStat}>
+                  <Activity size={12} />
+                  {pillar.stat}
+                </div>
+              </article>
             );
           })}
         </div>
       </section>
 
-      <Marquee items={AGENT_TYPES} reverse className="bg-crucible-surface/40" />
+      <section className={styles.protocolSection}>
+        <div data-reveal className={styles.protocolIntro}>
+          <div className={styles.sectionAside}>
+            <div className={styles.sectionIndex}>
+              <span>02</span>
+              <p>The experience</p>
+            </div>
+            <div className={styles.flowDiagram} aria-hidden="true">
+              <div className={styles.flowLine} />
+              <div className={styles.flowPulse} />
+              {["EVIDENCE", "AI HASH", "ESCROW"].map((label, index) => (
+                <div key={label} className={styles.flowNode}>
+                  <span>0{index + 1}</span>
+                  <strong>{label}</strong>
+                  <i />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className={styles.overline}>For builders and reviewers</p>
+            <h2>We handle verification. You ship.</h2>
+            <p className={styles.protocolDescription}>
+              Whether you&apos;re delivering a milestone or reviewing one, every
+              step stays inside the grant loop — escrow, AI hash, and on-chain
+              release.
+            </p>
+          </div>
+        </div>
 
-      {/* Roles */}
-      <section className="px-4 md:px-8 py-20 md:py-28">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.55, ease }}
-          className="max-w-2xl mx-auto text-center"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-white uppercase tracking-tight mb-4">
-            We handle verification. You ship.
-          </h2>
-          <p className="text-zinc-500 font-sans mb-8 leading-relaxed">
-            Whether you&apos;re delivering a milestone or reviewing one, every
-            step stays inside the grant loop - escrow, AI hash, and on-chain
-            payouts are strictly linked.
-          </p>
-
-          <div className="inline-flex border border-crucible-border p-1 mb-8">
-            {(
-              [
-                {
-                  id: "builder" as const,
-                  label: "For the builder",
-                  icon: FileText,
-                },
-                { id: "admin" as const, label: "For the admin", icon: Wallet },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setRole(tab.id)}
-                className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-colors ${
-                  role === tab.id
-                    ? "bg-crucible-gold text-black"
-                    : "text-zinc-500 hover:text-zinc-300"
-                }`}
-              >
-                <tab.icon className="w-3.5 h-3.5" />
-                {tab.label}
-              </button>
-            ))}
+        <div data-reveal className={styles.protocolConsole}>
+          <div className={styles.consoleHeader}>
+            <div className={styles.roleSwitch} role="tablist">
+              {(["builder", "admin"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  aria-selected={role === item}
+                  onClick={() => {
+                    setRole(item);
+                    setActiveStep(0);
+                  }}
+                  className={role === item ? styles.roleActive : ""}
+                >
+                  {item === "builder" ? "For the builder" : "For the admin"}
+                </button>
+              ))}
+            </div>
+            <span className={styles.consoleStatus}>
+              <span /> Interactive protocol map
+            </span>
           </div>
 
-          <AnimatePresence mode="wait">
-            <motion.ul
-              key={role}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.25, ease }}
-              className="space-y-3 text-[11px] uppercase tracking-widest text-zinc-500 text-left max-w-md mx-auto"
-            >
-              {role === "builder" ? (
-                <>
-                  <li className="flex gap-2">
-                    <Activity className="w-3.5 h-3.5 text-crucible-gold shrink-0 mt-0.5" />
-                    Connect Freighter &amp; open your grant
-                  </li>
-                  <li className="flex gap-2">
-                    <Activity className="w-3.5 h-3.5 text-crucible-gold shrink-0 mt-0.5" />
-                    Share repo, demo, docs, and delivery notes
-                  </li>
-                  <li className="flex gap-2">
-                    <Activity className="w-3.5 h-3.5 text-crucible-gold shrink-0 mt-0.5" />
-                    Wait for AI + admin — release updates reputation
-                  </li>
-                </>
-              ) : (
-                <>
-                  <li className="flex gap-2">
-                    <Activity className="w-3.5 h-3.5 text-crucible-cyan shrink-0 mt-0.5" />
-                    Fund escrow, then open Review
-                  </li>
-                  <li className="flex gap-2">
-                    <Activity className="w-3.5 h-3.5 text-crucible-cyan shrink-0 mt-0.5" />
-                    Run AI report and inspect the full delivery
-                  </li>
-                  <li className="flex gap-2">
-                    <Activity className="w-3.5 h-3.5 text-crucible-cyan shrink-0 mt-0.5" />
-                    Approve &amp; release — or reject for resubmit
-                  </li>
-                </>
-              )}
-            </motion.ul>
-          </AnimatePresence>
-        </motion.div>
-      </section>
-
-      {/* FAQ */}
-      <section className="px-4 md:px-8 py-16 md:py-24 border-t border-crucible-border bg-crucible-surface/30">
-        <div className="max-w-3xl mx-auto">
-          <motion.h2
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl font-bold text-white uppercase tracking-tight text-center mb-10"
-          >
-            Quick answers before you start
-          </motion.h2>
-          <div className="space-y-2">
-            {FAQ.map((item, i) => {
-              const open = openFaq === i;
-              return (
-                <motion.div
-                  key={item.q}
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.04 }}
-                  className="border border-crucible-border bg-crucible-bg"
-                >
+          <div className={styles.consoleBody}>
+            <div className={styles.stepList}>
+              {activeFlow.map((step, index) => {
+                const Icon = step.icon;
+                return (
                   <button
+                    key={`${role}-${step.label}`}
                     type="button"
-                    onClick={() => setOpenFaq(open ? null : i)}
-                    className="w-full flex items-center justify-between gap-4 px-4 py-4 text-left"
-                    aria-expanded={open}
+                    onFocus={() => setActiveStep(index)}
+                    onClick={() => setActiveStep(index)}
+                    className={activeStep === index ? styles.stepActive : ""}
                   >
-                    <span className="text-xs md:text-sm font-bold text-white uppercase tracking-wide">
-                      {item.q}
-                    </span>
-                    <ChevronDown
-                      className={`w-4 h-4 text-crucible-gold shrink-0 transition-transform ${
-                        open ? "rotate-180" : ""
-                      }`}
-                    />
+                    <span className={styles.stepNumber}>0{index + 1}</span>
+                    <Icon size={18} />
+                    <span>{step.label}</span>
+                    {activeStep === index && <ArrowRight size={14} />}
                   </button>
-                  <AnimatePresence initial={false}>
-                    {open && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.25, ease }}
-                        className="overflow-hidden"
-                      >
-                        <p className="px-4 pb-4 text-sm text-zinc-500 font-sans leading-relaxed border-t border-crucible-border pt-3">
-                          {item.a}
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })}
+                );
+              })}
+            </div>
+
+            <div key={`${role}-${activeStep}`} className={styles.stepDetail}>
+              <div className={styles.stepPulse}>
+                {(() => {
+                  const Icon = activeFlow[activeStep].icon;
+                  return <Icon size={32} />;
+                })()}
+              </div>
+              <p>Step 0{activeStep + 1}</p>
+              <h3>{activeFlow[activeStep].title}</h3>
+              <span>{activeFlow[activeStep].body}</span>
+              <div className={styles.progressDots}>
+                {activeFlow.map((_, index) => (
+                  <i
+                    key={index}
+                    className={index <= activeStep ? styles.dotComplete : ""}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="px-4 md:px-8 py-20 md:py-28 relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(222,255,59,0.08),transparent_60%)]" />
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, ease }}
-          className="relative max-w-3xl mx-auto text-center"
-        >
-          <h2 className="text-3xl md:text-5xl font-bold text-white uppercase tracking-tight mb-5">
-            Ready to let milestones pay,{" "}
-            <span className="text-crucible-gold">safely</span>?
-          </h2>
-          <p className="text-zinc-500 font-sans mb-8 max-w-xl mx-auto">
-            Testnet is live. Connect Freighter, deliver or review a milestone, and
-            watch escrow move on-chain.
+      <section className={styles.proofSection}>
+        <div data-reveal className={styles.proofVisual}>
+          <div className={styles.radar}>
+            <div className={styles.radarSweep} />
+            <div className={styles.radarCenter}>
+              <Fingerprint size={34} />
+              <strong>TRUST</strong>
+              <span>ON-CHAIN</span>
+            </div>
+            {[0, 1, 2, 3].map((item) => (
+              <span key={item} className={styles.radarPoint} />
+            ))}
+          </div>
+        </div>
+        <div data-reveal className={styles.proofCopy}>
+          <div className={styles.sectionIndex}>
+            <span>03</span>
+            <p>The outcome</p>
+          </div>
+          <p className={styles.overline}>Reputation that compounds</p>
+          <h2>Your work should outlive the grant.</h2>
+          <p>
+            Every paid milestone grows a verifiable Builder Passport—giving
+            future funders a signal they can inspect instead of a claim they
+            have to trust.
           </p>
-          <Link
-            href="/dashboard"
-            className="btn btn-primary px-8 py-3.5 inline-flex"
-          >
-            Get Started <ArrowRight className="w-4 h-4" />
+          <ul>
+            {[
+              "Completed milestones",
+              "Verified delivery history",
+              "Total funds received",
+              "Portable Stellar identity",
+            ].map((item) => (
+              <li key={item}>
+                <Check size={13} /> {item}
+              </li>
+            ))}
+          </ul>
+          <Link href="/builders" className={styles.textLink}>
+            Explore builder passports <ArrowRight size={14} />
           </Link>
-        </motion.div>
+        </div>
+      </section>
+
+      <section className={styles.faqSection}>
+        <div data-reveal className={styles.faqHeading}>
+          <p className={styles.overline}>Protocol notes</p>
+          <h2>Quick answers before you start</h2>
+        </div>
+        <div data-reveal className={styles.faqList}>
+          {FAQ.map((item, index) => {
+            const open = openFaq === index;
+            return (
+              <article key={item.q} className={open ? styles.faqOpen : ""}>
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(open ? null : index)}
+                  aria-expanded={open}
+                >
+                  <span>0{index + 1}</span>
+                  <strong>{item.q}</strong>
+                  <ChevronDown size={17} />
+                </button>
+                <div className={styles.faqAnswer}>
+                  <p>{item.a}</p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className={styles.finalCta}>
+        <div className={styles.ctaGrid} />
+        <div data-reveal>
+          <p className={styles.overline}>Testnet is live</p>
+          <h2>
+            Ready to let milestones pay,{" "}
+            <span>safely</span>?
+          </h2>
+          <p>
+            Testnet is live. Connect Freighter, deliver or review a milestone,
+            and watch escrow move on-chain.
+          </p>
+          <div className={styles.heroActions}>
+            <MagneticLink href="/dashboard" primary>
+              Get started <Zap size={15} />
+            </MagneticLink>
+            <MagneticLink href="/submit">
+              Submit evidence <ArrowRight size={15} />
+            </MagneticLink>
+          </div>
+        </div>
       </section>
     </div>
   );
