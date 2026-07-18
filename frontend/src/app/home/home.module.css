@@ -15,14 +15,30 @@
   --bg: #0f0f11;
   --surface: #17171a;
   --border: #2a2a2d;
+  --home-inline: clamp(1rem, 4vw, 4.5rem);
+  --title-size: clamp(1.75rem, 4.2vw + 0.6rem, 4.5rem);
+  --body-size: clamp(0.95rem, 0.35vw + 0.85rem, 1.25rem);
   position: relative;
   min-height: 100%;
-  margin: -1rem;
-  overflow: hidden;
+  margin: -0.75rem;
+  overflow-x: hidden;
+  overflow-y: visible;
   overflow-anchor: none;
   background: rgba(15, 15, 17, 0.9);
   color: #9ca3af;
   isolation: isolate;
+}
+
+@media (min-width: 768px) {
+  .home {
+    margin: -1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home {
+    margin: -2rem;
+  }
 }
 
 .pointerGlow {
@@ -40,14 +56,9 @@
 }
 
 .hero {
-  --hero-inline-padding: clamp(1.25rem, 4vw, 4.5rem);
   position: relative;
-  min-height: min(820px, calc(100dvh - 7rem));
-  display: grid;
-  grid-template-columns: minmax(0, 1.28fr) minmax(280px, 0.72fr);
-  align-items: center;
-  gap: clamp(1rem, 2.5vw, 3rem);
-  padding: clamp(2.25rem, 6vh, 5rem) var(--hero-inline-padding);
+  min-height: min(100dvh - 7rem, 52rem);
+  padding: clamp(3rem, 7vh, 5rem) var(--home-inline);
   border-bottom: 1px solid var(--border);
 }
 
@@ -91,7 +102,8 @@
 .heroCopy {
   position: relative;
   z-index: 2;
-  max-width: 760px;
+  max-width: min(48rem, 100%);
+  min-width: 0;
 }
 
 .eyebrow,
@@ -121,11 +133,12 @@
 .heroTitle {
   margin: 0;
   color: white;
-  font-size: clamp(3.15rem, 5.1vw, 6.5rem);
+  font-size: var(--title-size);
   font-weight: 700;
-  letter-spacing: -0.065em;
-  line-height: 0.86;
+  letter-spacing: -0.055em;
+  line-height: 0.92;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .lineMask {
@@ -137,33 +150,36 @@
 .lineMask > span {
   display: block;
   transform-origin: left bottom;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 100%;
 }
 
 .combinedTitleLine,
 .themselvesWord {
-  font-size: clamp(2.35rem, 3.8vw, 4.8rem);
-  line-height: 0.92;
+  font-size: inherit;
+  line-height: 0.94;
 }
 
 .combinedTitleLine {
-  letter-spacing: -0.065em;
+  letter-spacing: -0.055em;
 }
 
 .proveWord {
   color: var(--gold);
   font-family:
+    var(--font-playfair),
     "PP Editorial New",
     "Iowan Old Style",
     Baskerville,
     "Times New Roman",
     serif;
-  font-size: 1.12em;
+  font-size: 1.05em;
   font-style: italic;
   font-weight: 400;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.04em;
   text-transform: lowercase;
   text-shadow: 0 0 36px rgba(222, 255, 59, 0.12);
+  white-space: nowrap;
 }
 
 .themselvesWord {
@@ -176,12 +192,12 @@
 }
 
 .heroBody {
-  max-width: 620px;
-  margin: clamp(1.2rem, 2.5vh, 2rem) 0 0;
+  max-width: min(38rem, 100%);
+  margin: clamp(1rem, 2.5vh, 2rem) 0 0;
   color: #71717a;
   font-family: var(--font-sans), sans-serif;
-  font-size: clamp(1rem, 1.4vw, 1.25rem);
-  line-height: 1.72;
+  font-size: var(--body-size);
+  line-height: 1.65;
 }
 
 .heroActions {
@@ -194,18 +210,27 @@
 .magnetic {
   position: relative;
   display: inline-flex;
-  min-height: 3.35rem;
+  min-height: 3rem;
+  width: 100%;
   align-items: center;
   justify-content: center;
   gap: 0.65rem;
-  padding: 0 1.35rem;
+  padding: 0 1.25rem;
   overflow: hidden;
   border-radius: 8px;
-  font-size: 0.66rem;
+  font-size: clamp(0.58rem, 0.2vw + 0.52rem, 0.66rem);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   will-change: transform;
+}
+
+@media (min-width: 640px) {
+  .magnetic {
+    width: auto;
+    min-height: 3.35rem;
+    padding: 0 1.35rem;
+  }
 }
 
 .magnetic::after {
@@ -255,12 +280,16 @@
 .orbitShell {
   position: relative;
   z-index: 1;
-  height: min(540px, calc(100dvh - 10rem));
-  min-height: 330px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
 }
 
 .orbitAnchor {
+  position: relative;
   min-width: 0;
+  width: 100%;
 }
 
 .orbStage {
@@ -294,8 +323,8 @@
 .orbCore {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 74px;
-  height: 74px;
+  width: clamp(3.25rem, 12%, 4.625rem);
+  height: clamp(3.25rem, 12%, 4.625rem);
   display: grid;
   place-content: center;
   justify-items: center;
@@ -306,7 +335,7 @@
   background: rgba(15, 15, 17, 0.9);
   color: var(--gold);
   box-shadow: 0 0 35px rgba(222, 255, 59, 0.2);
-  font-size: 0.58rem;
+  font-size: clamp(0.45rem, 1.5vw, 0.58rem);
   font-weight: 700;
   letter-spacing: 0.18em;
 }
@@ -314,8 +343,9 @@
 .orbitLabel {
   position: absolute;
   z-index: 3;
-  min-width: 150px;
-  padding: 0.75rem 0.85rem;
+  min-width: 0;
+  max-width: 46%;
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.55rem, 1.6vw, 0.85rem);
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(15, 15, 17, 0.74);
   backdrop-filter: blur(14px);
@@ -360,8 +390,8 @@
 .scrollCue {
   position: absolute;
   bottom: 1.5rem;
-  left: clamp(1.5rem, 6vw, 7rem);
-  display: flex;
+  left: clamp(1rem, 4vw, 4.5rem);
+  display: none;
   align-items: center;
   gap: 0.65rem;
   color: #52525b;
@@ -412,11 +442,13 @@
 .manifesto,
 .proofSection {
   display: grid;
-  grid-template-columns: minmax(160px, 0.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(10rem, 0.35fr) minmax(0, 1fr);
   gap: clamp(2rem, 8vw, 9rem);
-  max-width: 1380px;
+  width: 100%;
+  max-width: min(1380px, 100%);
   margin: auto;
-  padding: clamp(6rem, 11vw, 11rem) clamp(1.5rem, 6vw, 7rem);
+  padding: clamp(4rem, 11vw, 11rem) clamp(1.25rem, 6vw, 7rem);
+  box-sizing: border-box;
 }
 
 .sectionIndex {
@@ -587,14 +619,18 @@
 }
 
 .pillarsSection {
-  padding: 0 clamp(1.5rem, 6vw, 7rem) clamp(2rem, 3vw, 3rem);
+  width: 100%;
+  max-width: 100%;
+  padding: 0 clamp(1.25rem, 6vw, 7rem) clamp(2rem, 3vw, 3rem);
+  box-sizing: border-box;
 }
 
 .pillarGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2.5rem;
-  max-width: 1380px;
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  width: 100%;
+  max-width: min(1380px, 100%);
   margin: auto;
 }
 
@@ -676,20 +712,24 @@
 }
 
 .protocolSection {
-  padding: clamp(2rem, 3vw, 3rem) clamp(1.5rem, 6vw, 7rem);
+  width: 100%;
+  max-width: 100%;
+  padding: clamp(2rem, 3vw, 3rem) clamp(1.25rem, 6vw, 7rem);
   border-block: 1px solid var(--border);
   background: #111113;
+  box-sizing: border-box;
 }
 
 .protocolIntro,
 .protocolConsole {
-  max-width: 1380px;
+  width: 100%;
+  max-width: min(1380px, 100%);
   margin-inline: auto;
 }
 
 .protocolIntro {
   display: grid;
-  grid-template-columns: minmax(160px, 0.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(10rem, 0.35fr) minmax(0, 1fr);
   gap: clamp(2rem, 8vw, 6rem);
   align-items: start;
   margin-bottom: 3rem;
@@ -988,9 +1028,11 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
-  max-width: 1380px;
+  width: 100%;
+  max-width: min(1380px, 100%);
   margin: 4rem auto;
-  gap: 3rem;
+  gap: clamp(2rem, 5vw, 3rem);
+  box-sizing: border-box;
 }
 
 .proofVisual {
@@ -1025,8 +1067,8 @@
 .radarCenter {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 125px;
-  height: 125px;
+  width: clamp(4.5rem, 18%, 7.8125rem);
+  height: clamp(4.5rem, 18%, 7.8125rem);
   display: grid;
   place-content: center;
   justify-items: center;
@@ -1138,9 +1180,12 @@
   display: grid;
   grid-template-columns: 0.7fr 1.3fr;
   gap: clamp(3rem, 8vw, 9rem);
-  padding: clamp(6rem, 10vw, 10rem) clamp(1.5rem, 6vw, 7rem);
+  width: 100%;
+  max-width: 100%;
+  padding: clamp(4rem, 10vw, 10rem) clamp(1.25rem, 6vw, 7rem);
   border-top: 1px solid var(--border);
   background: #111113;
+  box-sizing: border-box;
 }
 
 .faqHeading h2 {
@@ -1213,17 +1258,20 @@
 }
 
 .faqOpen .faqAnswer p {
-  padding: 0 3rem 1.5rem 58px;
+  padding: 0 clamp(1rem, 4vw, 3rem) 1.5rem clamp(1rem, 4vw, 3.625rem);
 }
 
 .finalCta {
   position: relative;
-  min-height: 720px;
+  min-height: min(72dvh, 45rem);
   display: grid;
   place-content: center;
-  padding: 6rem 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  padding: clamp(3.5rem, 8vw, 6rem) clamp(1.15rem, 4vw, 1.5rem);
   overflow: hidden;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .finalCta::before {
@@ -1357,78 +1405,10 @@
   }
 }
 
-@media (max-width: 960px) {
-  .hero {
-    grid-template-columns: 1fr;
-    padding-top: 6rem;
-  }
-
-  .heroCopy {
-    max-width: 900px;
-  }
-
-  .orbitShell {
-    height: 440px;
-  }
-
-  .pillarCard {
-    min-height: 380px;
-  }
-
-  .proofSection {
-    gap: 3rem;
-  }
-}
-
-@media (max-width: 700px) {
-  .home {
-    margin: -1rem;
-  }
-
+@media (max-width: 1023px) {
   .hero {
     min-height: auto;
-    display: block;
-    padding: 5rem 1.25rem 4rem;
-  }
-
-  .heroTitle {
-    font-size: clamp(2.65rem, 12.7vw, 4.5rem);
-    letter-spacing: -0.055em;
-  }
-
-  .lineMask > span {
-    white-space: normal;
-  }
-
-  .heroBody {
-    max-width: 92%;
-  }
-
-  .heroActions {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .heroActions .magnetic {
-    width: 100%;
-  }
-
-  .heroMeta {
-    gap: 0.8rem 1.2rem;
-  }
-
-  .orbitShell {
-    height: 430px;
-    min-height: 0;
-    margin-top: 1rem;
-  }
-
-  .orbitLabel {
-    min-width: 130px;
-  }
-
-  .scrollCue {
-    display: none;
+    padding-top: clamp(3.5rem, 8vh, 5.5rem);
   }
 
   .manifesto,
@@ -1438,8 +1418,54 @@
     grid-template-columns: 1fr;
   }
 
+  .pillarGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pillarCard {
+    min-height: auto;
+  }
+
   .sectionAside {
     min-height: auto;
+  }
+
+  .proofSection {
+    gap: 3rem;
+  }
+
+  .proofCopy ul {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .home {
+    --title-size: clamp(1.7rem, 7.5vw + 0.4rem, 2.6rem);
+    --body-size: clamp(0.95rem, 2.8vw, 1.1rem);
+    --home-inline: 1.15rem;
+  }
+
+  .hero {
+    min-height: auto;
+    padding: 4rem var(--home-inline) 3rem;
+  }
+
+  .heroBody,
+  .heroCopy {
+    max-width: 100%;
+  }
+
+  .heroMeta {
+    gap: 0.8rem 1.2rem;
+  }
+
+  .orbitLabel {
+    max-width: 48%;
+  }
+
+  .pillarGrid {
+    grid-template-columns: 1fr;
   }
 
   .proofMatrix,
@@ -1448,29 +1474,18 @@
   }
 
   .manifesto,
-  .proofSection {
-    padding-inline: 1.25rem;
+  .proofSection,
+  .protocolSection,
+  .pillarsSection,
+  .faqSection {
+    padding-inline: 1.15rem;
   }
 
   .manifestoCopy h2,
   .protocolIntro h2,
   .proofCopy h2,
   .faqHeading h2 {
-    font-size: clamp(2.5rem, 12vw, 4rem);
-  }
-
-  .pillarGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .pillarCard {
-    min-height: 330px;
-  }
-
-  .protocolSection,
-  .pillarsSection,
-  .faqSection {
-    padding-inline: 1.25rem;
+    font-size: clamp(1.9rem, 8vw, 3.2rem);
   }
 
   .protocolIntro {
@@ -1492,13 +1507,13 @@
 
   .stepList {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
 
   .stepList button {
-    min-height: 96px;
+    min-height: 5.5rem;
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
@@ -1527,12 +1542,12 @@
   }
 
   .stepDetail {
-    min-height: 390px;
-    padding: 2rem;
+    min-height: 20rem;
+    padding: 1.5rem;
   }
 
   .proofVisual {
-    min-height: 360px;
+    min-height: 18rem;
   }
 
   .proofCopy .sectionIndex {
@@ -1552,25 +1567,19 @@
   }
 
   .finalCta {
-    min-height: 620px;
+    min-height: min(70dvh, 34rem);
+    padding-inline: 1.15rem;
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 374px) {
+  .home {
+    --title-size: clamp(1.55rem, 8vw, 2.1rem);
+    --home-inline: 1rem;
+  }
+
   .hero {
-    padding: 3.75rem 1rem 3rem;
-  }
-
-  .combinedTitleLine,
-  .themselvesWord {
-    font-size: clamp(1.9rem, 8.3vw, 2.5rem);
-    line-height: 0.98;
-  }
-
-  .heroBody {
-    max-width: 100%;
-    font-size: 0.95rem;
-    line-height: 1.6;
+    padding: 3.25rem var(--home-inline) 2.5rem;
   }
 
   .heroMeta {
@@ -1578,65 +1587,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .orbitShell {
-    height: min(88vw, 350px);
-  }
-
-  .orbitLabel {
-    min-width: 112px;
-    padding: 0.6rem 0.65rem;
-  }
-
-  .manifesto,
-  .proofSection,
-  .protocolSection,
-  .pillarsSection,
-  .faqSection {
-    padding-inline: 1rem;
-  }
-
-  .stepDetail {
-    min-height: 340px;
-    padding: 1.25rem;
-  }
-
   .finalCta {
-    min-height: 520px;
-    padding-inline: 1rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .home {
-    width: auto;
-    min-width: 0;
-    max-width: none;
-    margin: -2rem;
-  }
-}
-
-@media (min-width: 961px) {
-  .hero {
-    --hero-orb-size: 320px;
-    grid-template-columns:
-      minmax(0, 1fr)
-      var(--hero-orb-size);
-  }
-
-  .orbitAnchor {
-    position: absolute;
-    z-index: 1;
-    top: 50%;
-    right: var(--hero-inline-padding);
-    width: var(--hero-orb-size);
-    height: var(--hero-orb-size);
-    transform: translateY(-50%);
-  }
-
-  .orbitShell {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
+    min-height: min(65dvh, 28rem);
   }
 }
 

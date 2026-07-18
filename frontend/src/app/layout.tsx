@@ -48,7 +48,7 @@ export default function RootLayout({
       lang="en"
       className={`${spaceMono.variable} ${inter.variable} ${outfit.variable} ${playfair.variable} h-full antialiased dark`}
     >
-      <body className="h-full flex bg-crucible-bg text-foreground font-mono overflow-hidden relative">
+      <body className="h-full flex bg-crucible-bg text-foreground font-mono overflow-hidden overflow-x-hidden relative">
         <ParticleBackground />
         <AuthProvider>
           <WalletProvider>

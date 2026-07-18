@@ -298,7 +298,7 @@ export default function Home() {
     <div
       ref={rootRef}
       onMouseMove={onPointerMove}
-      className={styles.home}
+      className={`${styles.home} w-full max-w-full min-h-full overflow-x-hidden`}
       style={
         {
           "--pointer-x": `${pointer.x}%`,
@@ -308,10 +308,15 @@ export default function Home() {
     >
       <div className={styles.pointerGlow} />
 
-      <section data-hero className={styles.hero}>
+      <section
+        data-hero
+        className={`${styles.hero} w-full max-w-full grid grid-cols-1 lg:grid-cols-12 items-center gap-6 sm:gap-8 lg:gap-10`}
+      >
         <ParticleBackground className={styles.heroParticles} contained />
         <div className={styles.heroGrid} />
-        <div className={styles.heroCopy}>
+        <div
+          className={`${styles.heroCopy} relative z-[2] w-full max-w-3xl min-w-0 lg:col-span-7 xl:col-span-7`}
+        >
           <div data-hero-kicker className={styles.eyebrow}>
             <span className={styles.liveDot} />
             Stellar · Soroban
@@ -330,13 +335,16 @@ export default function Home() {
             </span>
           </h1>
 
-          <p data-hero-copy className={styles.heroBody}>
+          <p data-hero-copy className={`${styles.heroBody} w-full max-w-xl`}>
             AI verifies delivery, escrow pays in stages on Stellar, and every
             builder earns verified on-chain reputation - never all-or-nothing
             funding.
           </p>
 
-          <div data-hero-actions className={styles.heroActions}>
+          <div
+            data-hero-actions
+            className={`${styles.heroActions} flex flex-col sm:flex-row flex-wrap w-full`}
+          >
             <MagneticLink href="/dashboard" primary>
               Start verifying <ArrowRight size={15} />
             </MagneticLink>
@@ -345,16 +353,21 @@ export default function Home() {
             </MagneticLink>
           </div>
 
-          <div className={styles.heroMeta}>
+          <div className={`${styles.heroMeta} flex flex-wrap`}>
             <span>01 / Evidence</span>
             <span>02 / Intelligence</span>
             <span>03 / Settlement</span>
           </div>
         </div>
 
-        <div className={styles.orbitAnchor}>
-          <div data-orbit-shell className={styles.orbitShell}>
-            <div data-orb className={styles.orbStage}>
+        <div
+          className={`${styles.orbitAnchor} relative z-[1] w-full min-w-0 max-w-md mx-auto lg:mx-0 lg:max-w-none lg:col-span-5 xl:col-span-5 flex items-center justify-center justify-self-center`}
+        >
+          <div
+            data-orbit-shell
+            className={`${styles.orbitShell} relative w-full aspect-square max-w-[min(100%,20rem)] sm:max-w-[min(100%,24rem)] md:max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)] xl:max-w-[min(100%,30rem)]`}
+          >
+            <div data-orb className={`${styles.orbStage} w-full h-full`}>
               <EquidoxOrb />
               <div className={`${styles.orbitLabel} ${styles.orbitLabelTop}`}>
                 <span>AI confidence</span>
@@ -372,7 +385,10 @@ export default function Home() {
           </div>
         </div>
 
-        <a href="#experience" className={styles.scrollCue}>
+        <a
+          href="#experience"
+          className={`${styles.scrollCue} absolute bottom-6 left-[clamp(1rem,4vw,4.5rem)] z-[2] hidden md:inline-flex`}
+        >
           Scroll to verify <ArrowDown size={13} />
         </a>
       </section>
