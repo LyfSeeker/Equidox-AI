@@ -315,7 +315,7 @@ export default function Home() {
         <ParticleBackground className={styles.heroParticles} contained />
         <div className={styles.heroGrid} />
         <div
-          className={`${styles.heroCopy} relative z-[2] w-full max-w-3xl min-w-0 lg:col-span-7 xl:col-span-7`}
+          className={`${styles.heroCopy} relative z-[2] w-full max-w-4xl min-w-0 lg:col-span-9 xl:col-span-9`}
         >
           <div data-hero-kicker className={styles.eyebrow}>
             <span className={styles.liveDot} />
@@ -570,19 +570,6 @@ export default function Home() {
       </section>
 
       <section className={styles.proofSection}>
-        <div data-reveal className={styles.proofVisual}>
-          <div className={styles.radar}>
-            <div className={styles.radarSweep} />
-            <div className={styles.radarCenter}>
-              <Fingerprint size={34} />
-              <strong>TRUST</strong>
-              <span>ON-CHAIN</span>
-            </div>
-            {[0, 1, 2, 3].map((item) => (
-              <span key={item} className={styles.radarPoint} />
-            ))}
-          </div>
-        </div>
         <div data-reveal className={styles.proofCopy}>
           <div className={styles.sectionIndex}>
             <span>03</span>
@@ -610,6 +597,19 @@ export default function Home() {
           <Link href="/builders" className={styles.textLink}>
             Explore builder passports <ArrowRight size={14} />
           </Link>
+        </div>
+        <div data-reveal className={styles.proofVisual}>
+          <div className={styles.radar}>
+            <div className={styles.radarSweep} />
+            <div className={styles.radarCenter}>
+              <Fingerprint size={34} />
+              <strong>TRUST</strong>
+              <span>ON-CHAIN</span>
+            </div>
+            {[0, 1, 2, 3].map((item) => (
+              <span key={item} className={styles.radarPoint} />
+            ))}
+          </div>
         </div>
       </section>
 
