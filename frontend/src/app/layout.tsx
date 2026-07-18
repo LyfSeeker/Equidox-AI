@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Space_Mono, Inter, Outfit } from "next/font/google";
+import { Space_Mono, Inter, Outfit, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import AppChrome from "@/components/AppChrome";
 import AuthGate from "@/components/AuthGate";
@@ -24,6 +24,12 @@ const outfit = Outfit({
   subsets: ["latin"],
 });
 
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  style: ["italic", "normal"],
+});
+
 export const metadata: Metadata = {
   title: "Equidox AI | Milestone Verification",
   description: "AI-powered milestone verification and grant distribution on Stellar",
@@ -40,7 +46,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceMono.variable} ${inter.variable} ${outfit.variable} h-full antialiased dark`}
+      className={`${spaceMono.variable} ${inter.variable} ${outfit.variable} ${playfair.variable} h-full antialiased dark`}
     >
       <body className="h-full flex bg-crucible-bg text-foreground font-mono overflow-hidden relative">
         <ParticleBackground />
