@@ -103,6 +103,15 @@ AI keys live in `backend/.env` — see `backend/.env.example` (Kimi primary: `AI
 4. **Connect Wallet**: Once logged in, connect your Freighter wallet to interact with the Stellar Testnet.
 5. **Submit a Milestone**: Navigate to the submission portal and provide a GitHub PR link. The AI will analyze the code against the grant's acceptance criteria and automatically trigger the Soroban contract to release funds if approved.
 
+## Deploy on Railway
+
+Step-by-step hosting (exact env vars, monorepo roots, Keycloak redirect URIs):
+
+→ **[`docs/RAILWAY.md`](./docs/RAILWAY.md)**
+
+Copy-paste templates: `backend/.env.railway.example`, `frontend/.env.railway.example`.  
+Service config: `backend/railway.toml`, `frontend/railway.toml`, `keycloak/railway.toml`.
+
 ## Docker
 
 Run frontend + backend + PostgreSQL + Keycloak:

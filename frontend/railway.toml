@@ -1,0 +1,14 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["src/**", "public/**", "package.json", "package-lock.json", "Dockerfile", "next.config.*"]
+
+# NEXT_PUBLIC_* must be set as service variables BEFORE the first build.
+# They are baked into the client bundle via Dockerfile ARG/ENV at build time.
+# Changing them later requires a redeploy/rebuild — runtime-only updates are not enough.
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
