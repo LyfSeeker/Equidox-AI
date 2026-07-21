@@ -363,7 +363,7 @@ export async function callChatCompletions(
 
       if (res.status === 429 || res.status >= 500) {
         lastErr = new Error(`${provider.name} HTTP ${res.status}`);
-        await new Promise((r) => setTimeout(r, attempt * 800));
+        await new Promise((r) => setTimeout(r, 20000));
         continue;
       }
 
@@ -407,7 +407,7 @@ export async function callChatCompletions(
       ) {
         throw err;
       }
-      if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 800));
+      if (attempt < 3) await new Promise((r) => setTimeout(r, 20000));
     }
   }
 
