@@ -70,7 +70,17 @@ create_grant (+ add_milestone × N with acceptance criteria)
   → approve_milestone → release_funds
 ```
 
-## Testnet Deployment (live)
+## Mainnet Deployment (live)
+
+| Contract | ID |
+|---|---|
+| Grant Manager | `CBVQQZSSOH6EH3JNDYCJGOTJZX34KDBJUXFHJWDMQGYIM5FH2ZPT327E` |
+| Builder Passport | `CCS3GE6Y4RV7UKCX57TXKPXVRBTC4DH44YZJN63IYC7NZ3AXBMGHOYDV` |
+| Native XLM SAC | `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA` |
+
+See `docs/MAINNET_DEPLOYMENT.md` for explorer links and env vars.
+
+## Testnet Deployment (legacy)
 
 | Contract | ID |
 |---|---|

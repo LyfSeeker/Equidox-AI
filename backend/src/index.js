@@ -31,7 +31,7 @@ app.use((err, _req, res, _next) => {
     return res.status(400).json({
       error: msg,
       code: "ACCOUNT_NOT_FOUND",
-      hint: "Fund this Testnet account with Friendbot via POST /api/friendbot",
+      hint: "Fund this Mainnet account with real XLM before submitting Soroban transactions",
     });
   }
   res.status(500).json({
@@ -43,6 +43,6 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`Equidox backend running on http://localhost:${PORT}`);
-  console.log(`Network: ${process.env.STELLAR_NETWORK || "testnet"}`);
+  console.log(`Network: ${process.env.STELLAR_NETWORK || "mainnet"}`);
   startEventIndexer();
 });

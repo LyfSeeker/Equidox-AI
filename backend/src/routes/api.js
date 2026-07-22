@@ -44,7 +44,7 @@ router.get("/health", async (_req, res) => {
   res.json({
     status: "ok",
     service: "equidox-backend",
-    network: process.env.STELLAR_NETWORK || "testnet",
+    network: process.env.STELLAR_NETWORK || "mainnet",
     contracts: {
       grantManager: process.env.GRANT_MANAGER_CONTRACT_ID || null,
       builderPassport: process.env.BUILDER_PASSPORT_CONTRACT_ID || null,
@@ -71,7 +71,7 @@ router.get("/account/:address", async (req, res, next) => {
   try {
     const address = req.params.address;
     const exists = await accountExists(address);
-    res.json({ address, exists, network: process.env.STELLAR_NETWORK || "testnet" });
+    res.json({ address, exists, network: process.env.STELLAR_NETWORK || "mainnet" });
   } catch (err) {
     next(err);
   }

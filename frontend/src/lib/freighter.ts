@@ -28,7 +28,7 @@ export async function connectFreighter(options?: { forcePrompt?: boolean }) {
   // After logout, require a sign-in message so the extension UI opens again.
   if (options?.forcePrompt) {
     const signed = await signMessage(
-      `Sign in to Equidox Trust Layer\nNetwork: Stellar Testnet\n${new Date().toISOString()}`,
+      `Sign in to Equidox Trust Layer\nNetwork: Stellar Mainnet\n${new Date().toISOString()}`,
       {
         address: access.address,
         networkPassphrase: NETWORK_PASSPHRASE,

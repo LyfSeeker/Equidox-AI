@@ -18,7 +18,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { api, type ChainEvent } from "@/lib/api";
-import { shortAddress, explorerTxUrl } from "@/lib/config";
+import { shortAddress, explorerTxUrl, STELLAR_NETWORK } from "@/lib/config";
 
 const SEEN_KEY = "equidox.notifications.seenAt";
 
@@ -115,18 +115,41 @@ export default function Topbar() {
   const loadEvents = useCallback(async () => {
     setEventsLoading(true);
     try {
-      const list = await api.listEvents(25);
-      setEvents(list);
+      const list = await api.listEvents(40);
+      const cleaned = list.filter(
+        (ev) =>
+          ev?.event_name &&
+          ev.event_name !== "[object Object]" &&
+          ev.event_name !== "[objectObject]" &&
+          ev.event_name !== "Unknown" &&
+          !/^\[object/i.test(ev.event_name)
+      );
+      setEvents((prev) => {
+        if (prev.length > 0) {
+          const prevIds = new Set(prev.map((e) => e.id));
+          const fresh = cleaned.filter((e) => !prevIds.has(e.id));
+          for (const ev of fresh.slice(0, 3).reverse()) {
+            const copy = EVENT_COPY[ev.event_name];
+            if (copy) {
+              toast.info(
+                copy.title,
+                `Mainnet update · ${formatWhen(ev.indexed_at)}`
+              );
+            }
+          }
+        }
+        return cleaned;
+      });
     } catch {
       setEvents([]);
     } finally {
       setEventsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     void loadEvents();
-    const t = setInterval(() => void loadEvents(), 45_000);
+    const t = setInterval(() => void loadEvents(), 12_000);
     return () => clearInterval(t);
   }, [loadEvents]);
 
@@ -197,6 +220,13 @@ export default function Topbar() {
 
   async function fundWallet() {
     if (!address) return;
+    if (STELLAR_NETWORK === "mainnet") {
+      toast.info(
+        "Mainnet funding",
+        "Friendbot is unavailable. Send real XLM to your Freighter wallet."
+      );
+      return;
+    }
     setFunding(true);
     try {
       await api.fundFriendbot(address);
@@ -257,7 +287,9 @@ export default function Topbar() {
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <div className="badge badge-cyan shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-crucible-cyan animate-pulse" />
-          <span className="hidden sm:inline">Stellar Testnet</span>
+          <span className="hidden sm:inline">
+            Stellar {STELLAR_NETWORK === "mainnet" ? "Mainnet" : "Testnet"}
+          </span>
         </div>
 
         {!freighterAvailable && (
@@ -265,7 +297,7 @@ export default function Topbar() {
             Freighter not detected
           </span>
         )}
-        {address && funded === false && (
+        {address && funded === false && STELLAR_NETWORK !== "mainnet" && (
           <button
             type="button"
             onClick={fundWallet}
@@ -339,10 +371,11 @@ export default function Topbar() {
                     <div className="px-4 py-10 text-center space-y-2">
                       <Activity className="w-5 h-5 text-zinc-600 mx-auto" />
                       <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
-                        No updates yet
+                        No Mainnet updates yet
                       </p>
                       <p className="text-[11px] text-zinc-600 font-sans">
-                        Grant, milestone, and payment events will appear here.
+                        Create grants, deposit escrow, or release funds — live
+                        chain events appear here automatically.
                       </p>
                     </div>
                   ) : (

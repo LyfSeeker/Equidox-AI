@@ -18,19 +18,48 @@ import {
   shortAddress,
   stroopsToXlm,
   explorerTxUrl,
+  STELLAR_NETWORK,
 } from "@/lib/config";
 import BrandIcon from "@/components/BrandIcon";
 
+function isStellarAddress(value: string) {
+  return /^G[A-Z0-9]{55}$/.test(value.trim());
+}
+
 function parseReturnU64(value: unknown): number | null {
   if (value == null) return null;
-  if (typeof value === "number") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "bigint") return Number(value);
-  if (typeof value === "string" && value !== "") return Number(value);
+  if (typeof value === "string" && value !== "") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    for (const key of ["u64", "u32", "i128", "value", "id", "_value"]) {
+      if (key in o) {
+        const nested = parseReturnU64(o[key]);
+        if (nested != null) return nested;
+      }
+    }
+  }
   return null;
 }
 
 function parseReturnU32(value: unknown): number | null {
   return parseReturnU64(value);
+}
+
+function assertTxSuccess(submitted: {
+  hash?: string;
+  status?: string;
+  returnValue?: unknown;
+}) {
+  if (submitted?.status && submitted.status !== "SUCCESS") {
+    throw new Error(
+      `On-chain submit did not succeed (${submitted.status}). Hash: ${submitted.hash || "—"}. Nothing was saved — fix Freighter/network and retry.`
+    );
+  }
 }
 
 type DraftMilestone = {
@@ -73,10 +102,11 @@ export default function GrantMatching() {
     newDraftMilestone({
       title: "Core Smart Contracts",
       description:
-        "Ship and document Soroban grant manager + passport. Acceptance: contracts deployable on testnet, README with build steps, and at least one verified invoke.",
+        "Ship and document Soroban grant manager + passport. Acceptance: contracts deployable on Mainnet, README with build steps, and at least one verified invoke.",
       amountXlm: "5",
     })
   );
+  const [budgetXlm, setBudgetXlm] = useState("5");
 
   const [activeGrant, setActiveGrant] = useState<Grant | null>(null);
   const [escrowOpen, setEscrowOpen] = useState(false);
@@ -95,11 +125,6 @@ export default function GrantMatching() {
   const [msDeadline, setMsDeadline] = useState("");
   const [msBusy, setMsBusy] = useState(false);
 
-  const budgetXlm = (() => {
-    const n = Number(firstMilestone.amountXlm);
-    return Number.isFinite(n) && n > 0 ? String(n) : "0";
-  })();
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -116,13 +141,6 @@ export default function GrantMatching() {
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (address) {
-      setBuilderAddress((prev) => prev || address);
-      setReviewerAddress((prev) => prev || address);
-    }
-  }, [address]);
-
   async function ensureWallet() {
     if (address) return address;
     return connect();
@@ -130,11 +148,17 @@ export default function GrantMatching() {
 
   async function ensureFunded(addr: string) {
     const check = await api.checkAccount(addr);
-    if (!check.exists) {
-      toast.info("Funding Testnet wallet via Friendbot...");
-      await api.fundFriendbot(addr);
-      toast.success("Wallet funded");
+    if (check.exists) return;
+
+    if (STELLAR_NETWORK === "mainnet") {
+      throw new Error(
+        `Wallet ${shortAddress(addr)} is not funded on Mainnet. Send real XLM to it, then try again.`
+      );
     }
+
+    toast.info("Funding Testnet wallet via Friendbot...");
+    await api.fundFriendbot(addr);
+    toast.success("Wallet funded");
   }
 
   async function onCreateGrant(e: FormEvent) {
@@ -148,15 +172,22 @@ export default function GrantMatching() {
     }
 
     try {
+      // Any Freighter wallet the admin connects becomes the grant provider.
       const providerAddress = await ensureWallet();
-      if (!builderAddress || !reviewerAddress) {
-        setError("Builder and reviewer addresses are required.");
-        return;
+      if (!isStellarAddress(providerAddress)) {
+        throw new Error("Connect a valid Freighter wallet to create the grant.");
+      }
+      if (!isStellarAddress(builderAddress)) {
+        throw new Error("Enter a valid builder wallet address (G…).");
+      }
+      if (!isStellarAddress(reviewerAddress)) {
+        throw new Error("Enter a valid reviewer wallet address (G…).");
       }
 
       const amountStroops = Math.round(
         Number(firstMilestone.amountXlm) * 10_000_000
       );
+      const totalBudgetStroops = Math.round(Number(budgetXlm) * 10_000_000);
       if (!firstMilestone.title.trim()) {
         throw new Error("First milestone: title is required");
       }
@@ -168,6 +199,14 @@ export default function GrantMatching() {
       if (!Number.isFinite(amountStroops) || amountStroops <= 0) {
         throw new Error("First milestone: enter a valid payout in XLM");
       }
+      if (!Number.isFinite(totalBudgetStroops) || totalBudgetStroops <= 0) {
+        throw new Error("Enter a valid grant budget in XLM");
+      }
+      if (totalBudgetStroops < amountStroops) {
+        throw new Error(
+          "Grant budget must be at least the first milestone payout"
+        );
+      }
 
       const milestone = {
         title: firstMilestone.title.trim(),
@@ -176,7 +215,6 @@ export default function GrantMatching() {
         amountXlm: Number(firstMilestone.amountXlm),
         deadline: firstMilestone.deadline || null,
       };
-      const totalBudgetStroops = amountStroops;
 
       setSubmitting(true);
       await ensureFunded(providerAddress);
@@ -196,20 +234,30 @@ export default function GrantMatching() {
       const unsigned = await api.buildCreateGrant({
         sourcePublicKey: providerAddress,
         providerAddress,
-        builderAddress,
-        reviewerAddress,
+        builderAddress: builderAddress.trim(),
+        reviewerAddress: reviewerAddress.trim(),
         totalBudgetStroops,
         metadataHash: meta.metadataHash,
       });
 
-      toast.info("Confirm create_grant in Freighter");
+      toast.info(
+        "Confirm create_grant in Freighter",
+        `Mainnet · ${shortAddress(providerAddress)} — approve and wait for confirmation`
+      );
       const submitted = await signAndSubmit(unsigned);
+      assertTxSuccess(submitted);
       const onChainGrantId = parseReturnU64(submitted.returnValue);
+
+      if (onChainGrantId == null) {
+        throw new Error(
+          `create_grant confirmed (${submitted.hash?.slice(0, 10)}…) but no grant id was returned. Check Freighter is on Mainnet and retry — nothing was saved to the database.`
+        );
+      }
 
       const record = await api.createGrantRecord({
         providerAddress,
-        builderAddress,
-        reviewerAddress,
+        builderAddress: builderAddress.trim(),
+        reviewerAddress: reviewerAddress.trim(),
         title,
         description,
         totalBudgetStroops,
@@ -219,27 +267,19 @@ export default function GrantMatching() {
         status: "active",
       });
 
-      if (onChainGrantId == null) {
-        toast.info(
-          "Grant created",
-          "On-chain ID pending — open Manage Escrow after sync to attach the milestone and deposit."
-        );
-        await load();
-        return;
-      }
-
       await api.indexEvent({
         eventName: "GrantCreated",
         payload: {
           grant_id: onChainGrantId,
           provider: providerAddress,
-          builder: builderAddress,
-          reviewer: reviewerAddress,
+          builder: builderAddress.trim(),
+          reviewer: reviewerAddress.trim(),
           total_budget: totalBudgetStroops,
           milestone_count: 1,
         },
         txHash: submitted.hash,
       });
+      toast.success("Grant created on Mainnet", `On-chain #${onChainGrantId}`);
 
       toast.info("Confirm add_milestone in Freighter", milestone.title);
       const msUnsigned = await api.buildAddMilestone({
@@ -249,6 +289,7 @@ export default function GrantMatching() {
         amountStroops: milestone.amountStroops,
       });
       const msSubmitted = await signAndSubmit(msUnsigned);
+      assertTxSuccess(msSubmitted);
       const onChainMilestoneId =
         parseReturnU32(msSubmitted.returnValue) ?? 0;
 
@@ -276,7 +317,7 @@ export default function GrantMatching() {
       });
 
       setMessage(
-        `Grant #${record.id} + milestone #${onChainMilestoneId} created. Deposit escrow next.`
+        `Grant #${record.id} + milestone #${onChainMilestoneId} created with provider ${shortAddress(providerAddress)}. Deposit escrow next.`
       );
       toast.success(
         "Grant + first milestone on-chain",
@@ -293,7 +334,11 @@ export default function GrantMatching() {
       const display = e?.hint ? `${msg}\n\n${e.hint}` : msg;
       setError(display);
       toast.error("Create grant failed", e?.hint || msg);
-      if (/Account not found/i.test(msg) && address) {
+      if (
+        STELLAR_NETWORK !== "mainnet" &&
+        /Account not found/i.test(msg) &&
+        address
+      ) {
         try {
           await api.fundFriendbot(address);
           toast.success("Funded via Friendbot — try again");
@@ -373,7 +418,7 @@ export default function GrantMatching() {
       const providerAddress = await ensureWallet();
       if (providerAddress !== grant.provider_address) {
         throw new Error(
-          "Connect the grant provider wallet to deposit escrow"
+          `Switch Freighter to the grant provider wallet (${shortAddress(grant.provider_address)}) to deposit escrow. Any funded wallet can be provider when creating a new grant.`
         );
       }
       await ensureFunded(providerAddress);
@@ -397,6 +442,7 @@ export default function GrantMatching() {
       });
       toast.info("Confirm deposit_funds in Freighter");
       const submitted = await signAndSubmit(unsigned);
+      assertTxSuccess(submitted);
 
       const newEscrow = Number(grant.escrowed_stroops || 0) + amountStroops;
       const updated = await api.updateGrant(grant.id, {
@@ -478,6 +524,7 @@ export default function GrantMatching() {
       });
       toast.info("Confirm add_milestone in Freighter");
       const submitted = await signAndSubmit(unsigned);
+      assertTxSuccess(submitted);
       const onChainMilestoneId = parseReturnU32(submitted.returnValue) ?? 0;
 
       const m = await api.createMilestone({
@@ -538,7 +585,7 @@ export default function GrantMatching() {
         </div>
         <p className="page-desc !mt-1">
           {isAdmin
-            ? "Create a grant with the first milestone, deposit that payout into escrow, then add more milestones as you go."
+            ? "Connect any Freighter wallet as grant provider, enter any builder/reviewer wallets, create the first milestone, then deposit escrow."
             : "Browse grants and open one to submit your delivery documents for review."}
         </p>
       </div>
@@ -550,6 +597,29 @@ export default function GrantMatching() {
             <h3 className="text-xs font-bold text-white uppercase tracking-widest border-b border-crucible-border pb-2 flex items-center gap-2">
               <Filter className="w-4 h-4 text-crucible-gold" /> Create Grant
             </h3>
+
+            <div className="border border-crucible-gold/30 bg-crucible-gold/5 px-3 py-2 space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-crucible-gold">
+                Provider wallet (from Freighter)
+              </p>
+              <p className="text-xs text-white break-all font-mono">
+                {address ? address : "Connect any Freighter wallet to continue"}
+              </p>
+              <p className="text-[9px] text-zinc-500 font-sans normal-case tracking-normal">
+                Any funded Mainnet wallet you connect can create a grant. Switch
+                Freighter accounts anytime — the connected wallet becomes the
+                provider and signs create/deposit.
+              </p>
+              {!address && (
+                <button
+                  type="button"
+                  onClick={() => void connect()}
+                  className="mt-1 text-[10px] font-bold uppercase tracking-widest text-crucible-cyan hover:underline"
+                >
+                  Connect Freighter
+                </button>
+              )}
+            </div>
 
             <label className="block text-[10px] font-bold tracking-widest uppercase">
               Title
@@ -572,20 +642,22 @@ export default function GrantMatching() {
             </label>
 
             <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Builder Address
+              Builder Address (any G… wallet)
               <input
                 value={builderAddress}
-                onChange={(e) => setBuilderAddress(e.target.value)}
+                onChange={(e) => setBuilderAddress(e.target.value.trim())}
+                placeholder="G..."
                 className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
                 required
               />
             </label>
 
             <label className="block text-[10px] font-bold tracking-widest uppercase">
-              Reviewer Address
+              Reviewer Address (any G… wallet)
               <input
                 value={reviewerAddress}
-                onChange={(e) => setReviewerAddress(e.target.value)}
+                onChange={(e) => setReviewerAddress(e.target.value.trim())}
+                placeholder="G..."
                 className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-white"
                 required
               />
@@ -598,11 +670,12 @@ export default function GrantMatching() {
                 min="0.1"
                 step="0.1"
                 value={budgetXlm}
-                readOnly
-                className="mt-2 w-full bg-black/60 border border-crucible-border px-3 py-2 text-xs text-crucible-gold tabular-nums"
+                onChange={(e) => setBudgetXlm(e.target.value)}
+                className="mt-2 w-full bg-black border border-crucible-border px-3 py-2 text-xs text-crucible-gold tabular-nums"
+                required
               />
               <span className="mt-1 block text-[9px] text-zinc-600 normal-case tracking-normal font-sans">
-                Starts as the first milestone payout. Grows when you add more.
+                Total grant budget. Must be at least the first milestone payout.
               </span>
             </label>
 
@@ -647,12 +720,22 @@ export default function GrantMatching() {
                       min="0.1"
                       step="0.1"
                       value={firstMilestone.amountXlm}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const next = e.target.value;
                         setFirstMilestone((prev) => ({
                           ...prev,
-                          amountXlm: e.target.value,
-                        }))
-                      }
+                          amountXlm: next,
+                        }));
+                        const payout = Number(next);
+                        const budget = Number(budgetXlm);
+                        if (
+                          Number.isFinite(payout) &&
+                          payout > 0 &&
+                          (!Number.isFinite(budget) || budget < payout)
+                        ) {
+                          setBudgetXlm(next);
+                        }
+                      }}
                       className="mt-1 w-full bg-black border border-crucible-border px-2 py-1.5 text-xs text-white"
                       required
                     />
@@ -682,7 +765,9 @@ export default function GrantMatching() {
             >
               {submitting
                 ? "Confirm Freighter prompts…"
-                : "Create Grant + First Milestone"}
+                : address
+                  ? `Create with ${shortAddress(address)}`
+                  : "Connect wallet & create grant"}
             </button>
 
             {message && (
@@ -869,7 +954,7 @@ export default function GrantMatching() {
             </label>
             <p className="text-[10px] text-zinc-500">
               Signs <code>deposit_funds</code> with Freighter. XLM moves into
-              the Grant Manager escrow on Testnet.
+              the Grant Manager escrow on Mainnet.
             </p>
             <button
               type="button"

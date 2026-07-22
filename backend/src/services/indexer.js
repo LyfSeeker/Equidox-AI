@@ -177,7 +177,26 @@ const EVENT_HANDLERS = {
   },
 };
 
+const BAD_EVENT_NAMES = new Set([
+  "[object Object]",
+  "[objectObject]",
+  "Unknown",
+  "object Object",
+  "",
+]);
+
+function isUsableEventName(name) {
+  if (name == null) return false;
+  const s = String(name).trim();
+  if (!s || BAD_EVENT_NAMES.has(s)) return false;
+  if (/^\[object/i.test(s)) return false;
+  return true;
+}
+
 export async function indexEvent(eventName, payload, txHash, ledgerSequence = null) {
+  if (!isUsableEventName(eventName)) {
+    return { indexed: false, duplicate: false, skipped: true };
+  }
   const inserted = await insertEvent(eventName, payload, txHash, ledgerSequence);
   if (!inserted) return { indexed: false, duplicate: true };
 
@@ -195,16 +214,29 @@ export async function indexEvent(eventName, payload, txHash, ledgerSequence = nu
 export async function listEvents({ limit = 50, eventName } = {}) {
   if (eventName) {
     const res = await query(
-      `SELECT * FROM chain_events WHERE event_name = $1 ORDER BY indexed_at DESC LIMIT $2`,
+      `SELECT * FROM chain_events
+       WHERE event_name = $1
+         AND event_name <> '[object Object]'
+         AND event_name <> '[objectObject]'
+         AND event_name <> 'Unknown'
+       ORDER BY indexed_at DESC
+       LIMIT $2`,
       [eventName, limit]
     );
-    return res.rows;
+    return res.rows.filter((row) => isUsableEventName(row.event_name));
   }
   const res = await query(
-    `SELECT * FROM chain_events ORDER BY indexed_at DESC LIMIT $1`,
+    `SELECT * FROM chain_events
+     WHERE event_name IS NOT NULL
+       AND event_name <> ''
+       AND event_name <> '[object Object]'
+       AND event_name <> '[objectObject]'
+       AND event_name <> 'Unknown'
+     ORDER BY indexed_at DESC
+     LIMIT $1`,
     [limit]
   );
-  return res.rows;
+  return res.rows.filter((row) => isUsableEventName(row.event_name));
 }
 
 export async function getIndexerCursor(key = "soroban_start_ledger") {
@@ -229,7 +261,15 @@ export function parseRpcEvent(ev) {
     const first = topics[0];
     if (typeof first === "string") eventName = first.replace(/^"|"$/g, "");
     else if (first?.symbol) eventName = first.symbol;
-    else if (first?.toString) eventName = String(first);
+    else if (first && typeof first === "object" && typeof first.name === "string") {
+      eventName = first.name;
+    } else if (typeof first === "number" || typeof first === "bigint") {
+      eventName = String(first);
+    } else if (typeof first === "string") {
+      eventName = first;
+    } else {
+      eventName = "Unknown";
+    }
   } catch {
     eventName = "Unknown";
   }

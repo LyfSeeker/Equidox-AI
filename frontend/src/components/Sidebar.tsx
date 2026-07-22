@@ -9,8 +9,6 @@ import {
   Terminal,
   ShieldCheck,
   Database,
-  HelpCircle,
-  Code,
   PanelLeftClose,
   PanelLeft,
   Upload,
@@ -172,24 +170,6 @@ export default function Sidebar() {
             Role · {isAdmin ? "Admin" : "User"}
           </div>
         )}
-        <div
-          className={`flex items-center gap-3 px-3 py-2 text-zinc-600 text-[10px] font-bold tracking-widest ${
-            collapsed ? "justify-center" : "justify-center md:justify-start"
-          }`}
-          title="Support"
-        >
-          <HelpCircle className="w-4 h-4" />
-          {!collapsed && <span className="hidden md:inline">SUPPORT</span>}
-        </div>
-        <div
-          className={`flex items-center gap-3 px-3 py-2 text-zinc-600 text-[10px] font-bold tracking-widest ${
-            collapsed ? "justify-center" : "justify-center md:justify-start"
-          }`}
-          title="System log"
-        >
-          <Code className="w-4 h-4" />
-          {!collapsed && <span className="hidden md:inline">SYSTEM LOG</span>}
-        </div>
       </div>
     </aside>
   );

@@ -114,8 +114,14 @@ export async function buildContractInvoke({
   const contract = new Contract(contractId);
   const timebounds = await getNetworkTimebounds(server);
 
+  // Mainnet Soroban routinely needs more than BASE_FEE before prepare bumps it.
+  const fee =
+    process.env.STELLAR_NETWORK === "mainnet"
+      ? String(Math.max(Number(BASE_FEE) * 20, 200_000))
+      : BASE_FEE;
+
   let transaction = new TransactionBuilder(sourceAccount, {
-    fee: BASE_FEE,
+    fee,
     networkPassphrase: getNetworkPassphrase(),
     timebounds,
   })
@@ -227,7 +233,7 @@ function hintForTxCode(code) {
       return "Transaction minTime is in the future — check system clock / NTP.";
     case "txBadAuth":
     case "txBadAuthExtra":
-      return "Signature missing or Freighter is on the wrong network. Use Stellar Testnet and approve the prompt.";
+      return "Signature missing or Freighter is on the wrong network. Use Stellar Mainnet and approve the prompt.";
     case "txBadSeq":
       return "Account sequence conflict — wait a few seconds and retry.";
     case "txInsufficientBalance":
@@ -304,11 +310,45 @@ export async function submitTransaction(signedXdr) {
     throw err;
   }
 
-  let getResponse = await server.getTransaction(response.hash);
+  const hash = response.hash;
+  const waitMs = Number(process.env.TX_CONFIRM_WAIT_MS || 90_000);
   const started = Date.now();
-  while (getResponse.status === "NOT_FOUND" && Date.now() - started < 60000) {
-    await new Promise((r) => setTimeout(r, 1000));
-    getResponse = await server.getTransaction(response.hash);
+  let getResponse = await server.getTransaction(hash);
+
+  while (
+    (getResponse.status === "NOT_FOUND" ||
+      getResponse.status === "PENDING") &&
+    Date.now() - started < waitMs
+  ) {
+    await new Promise((r) => setTimeout(r, 1500));
+    getResponse = await server.getTransaction(hash);
+  }
+
+  if (getResponse.status === "FAILED") {
+    const explained = explainTransactionResult(getResponse.resultXdr);
+    const err = new Error(
+      `Transaction failed on-chain: ${JSON.stringify({
+        hash,
+        status: getResponse.status,
+        result: explained,
+      })}`
+    );
+    err.code = explained?.code || "FAILED";
+    err.hint =
+      "Freighter signed, but the network rejected the transaction. Confirm Freighter is on Stellar Mainnet, then retry.";
+    throw err;
+  }
+
+  if (getResponse.status !== "SUCCESS") {
+    const err = new Error(
+      `Transaction not confirmed (${getResponse.status || "UNKNOWN"}): ${hash}`
+    );
+    err.code = getResponse.status || "NOT_FOUND";
+    err.hint =
+      process.env.STELLAR_NETWORK === "mainnet"
+        ? "Mainnet did not include this transaction in time. In Freighter: Settings → Security → Advanced → allow insecure connection (needed for http://localhost). Ensure network is Public/Mainnet, wait a few seconds, and retry create."
+        : "Transaction was not confirmed. Check Freighter network matches the app, then retry.";
+    throw err;
   }
 
   let returnValue = null;
@@ -321,8 +361,8 @@ export async function submitTransaction(signedXdr) {
   }
 
   return {
-    hash: response.hash,
-    status: getResponse.status,
+    hash,
+    status: "SUCCESS",
     returnValue,
   };
 }

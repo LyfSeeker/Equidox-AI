@@ -41,7 +41,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
         <footer className="h-9 border-t border-crucible-border bg-crucible-bg/90 flex items-center justify-between px-3 sm:px-4 text-[10px] uppercase font-bold text-zinc-500 z-10 shrink-0 gap-2 sm:gap-4 backdrop-blur overflow-hidden">
           <span className="truncate min-w-0">© 2026 Equidox</span>
           <div className="flex items-center gap-2 sm:gap-4 md:gap-6 shrink-0">
-            <span className="hidden sm:inline">Network: Stellar Testnet</span>
+            <span className="hidden sm:inline">Network: Stellar Mainnet</span>
             <span className="hidden md:inline">Protocol: Soroban</span>
             <span className="flex items-center gap-2 text-crucible-cyan">
               <span className="w-2 h-2 rounded-full bg-crucible-cyan shadow-[0_0_8px_#00E5FF]" />

@@ -104,10 +104,30 @@ export default function VerificationView() {
 
   function parseReturnId(value: unknown): number | null {
     if (value == null) return null;
-    if (typeof value === "number") return value;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value === "bigint") return Number(value);
-    if (typeof value === "string" && value !== "") return Number(value);
+    if (typeof value === "string" && value !== "") {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+    if (typeof value === "object") {
+      const o = value as Record<string, unknown>;
+      for (const key of ["u64", "u32", "value", "id"]) {
+        if (key in o) {
+          const nested = parseReturnId(o[key]);
+          if (nested != null) return nested;
+        }
+      }
+    }
     return null;
+  }
+
+  function assertTxSuccess(submitted: { hash?: string; status?: string }) {
+    if (submitted?.status && submitted.status !== "SUCCESS") {
+      throw new Error(
+        `On-chain submit did not succeed (${submitted.status}). Nothing was saved — retry after Freighter confirms on Mainnet.`
+      );
+    }
   }
 
   const load = useCallback(async () => {
@@ -235,6 +255,7 @@ export default function VerificationView() {
       });
       toast.info("Confirm add_milestone in Freighter");
       const submitted = await signAndSubmit(unsigned);
+      assertTxSuccess(submitted);
       const chainMid = parseReturnId(submitted.returnValue) ?? 0;
 
       const m = await api.createMilestone({
@@ -313,6 +334,7 @@ export default function VerificationView() {
 
       setTxStep("Confirm submit in Freighter...");
       const submitted = await signAndSubmit(built.unsignedTransaction);
+      assertTxSuccess(submitted);
       const updated = await api.updateMilestone(selected.id, {
         status: "submitted",
         evidenceHash: built.evidenceHash,
@@ -424,6 +446,7 @@ export default function VerificationView() {
       });
       try {
         const submitted = await signAndSubmit(rebuilt.unsignedTransaction);
+        assertTxSuccess(submitted);
         await api.updateMilestone(selected.id, {
           status: "submitted",
           evidenceHash: rebuilt.evidenceHash,
@@ -478,6 +501,7 @@ export default function VerificationView() {
     setTxStep("Confirm store_verification_hash in Freighter...");
     try {
       const submitted = await signAndSubmit(result.unsignedTransaction);
+      assertTxSuccess(submitted);
       await api.updateMilestone(selected.id, {
         status: "under_review",
         verificationHash: result.verificationHash,
