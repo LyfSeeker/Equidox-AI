@@ -81,6 +81,8 @@ services:
     container_name: equidox-keycloak
     restart: unless-stopped
     command: ["start-dev", "--import-realm", "--http-port=8180"]
+    env_file:
+      - ./backend/.env
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
