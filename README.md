@@ -3,6 +3,7 @@
 AI-powered milestone verification and grant escrow on **Stellar Mainnet** (Soroban). Admins fund grants; builders submit evidence; Equidox AI scores delivery; approved milestones release XLM and update an on-chain Builder Passport.
 
 🚀 **Live Demo:** [https://equidox.site](https://equidox.site)
+Twitter : https://x.com/EquidoxAi
 
 ### 🚨 For Trying Out
 
