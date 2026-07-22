@@ -2,6 +2,27 @@
 
 AI-powered milestone verification and grant escrow on **Stellar Mainnet** (Soroban). Admins fund grants; builders submit evidence; Equidox AI scores delivery; approved milestones release XLM and update an on-chain Builder Passport.
 
+🚀 **Live Demo:** [https://equidox.site](https://equidox.site)
+
+### 🚨 For Hackathon Judges
+
+To fully test the application on our live demo site, please use the following pre-configured accounts:
+
+| Role | Username | Password | Actions |
+|---|---|---|---|
+| **Admin (Reviewer)** | `admin` | `admin` | Create grants, deposit escrow, run AI verification, approve/release funds |
+| **User (Builder)** | `demo` | `demo` | Submit project evidence (GitHub repo), view Builder Passport |
+
+*Tip: Open a regular browser window for `admin` and an incognito window for `demo` to test the full lifecycle simultaneously! You will need the [Freighter Wallet](https://freighter.app/) connected to **Mainnet** and funded with XLM.*
+
+### 🔗 Stellar Mainnet Contracts
+
+| Contract | Address |
+|---|---|
+| **Grant Manager** | `CBVQQZSSOH6EH3JNDYCJGOTJZX34KDBJUXFHJWDMQGYIM5FH2ZPT327E` |
+| **Builder Passport** | `CCS3GE6Y4RV7UKCX57TXKPXVRBTC4DH44YZJN63IYC7NZ3AXBMGHOYDV` |
+| **Native XLM SAC** (Escrow) | `CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA` |
+
 **Status (2026-07-22):** Dockerized Mainnet MVP — Keycloak login → Freighter (Public/Mainnet) → grant lifecycle → Equidox AI (Gemini primary, with failover). See [`docs/MAINNET_DEPLOYMENT.md`](./docs/MAINNET_DEPLOYMENT.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md), and [`PROJECT_STATUS.md`](./PROJECT_STATUS.md).
 
 ---
