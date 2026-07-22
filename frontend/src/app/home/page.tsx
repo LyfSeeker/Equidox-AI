@@ -315,7 +315,7 @@ export default function Home() {
         <ParticleBackground className={styles.heroParticles} contained />
         <div className={styles.heroGrid} />
         <div
-          className={`${styles.heroCopy} relative z-[2] w-full max-w-4xl min-w-0 lg:col-span-9 xl:col-span-9`}
+          className={`${styles.heroCopy} relative z-[2] w-full max-w-4xl min-w-0 lg:col-span-7 xl:col-span-7`}
         >
           <div data-hero-kicker className={styles.eyebrow}>
             <span className={styles.liveDot} />
