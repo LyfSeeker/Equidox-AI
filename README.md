@@ -4,7 +4,7 @@ AI-powered milestone verification and grant escrow on **Stellar Mainnet** (Sorob
 
 🚀 **Live Demo:** [https://equidox.site](https://equidox.site)
 
-### 🚨 For Hackathon Judges
+### 🚨 For Trying Out
 
 To fully test the application on our live demo site, please use the following pre-configured accounts:
 
