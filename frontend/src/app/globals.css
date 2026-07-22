@@ -45,6 +45,18 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Hide native number input spinners (budget / amount fields) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Focus rings for a11y */
 :focus-visible {
   outline: 2px solid var(--color-crucible-gold);

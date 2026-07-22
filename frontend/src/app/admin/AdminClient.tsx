@@ -35,9 +35,7 @@ export default function AdminClient() {
 
   return (
     <LoginPanel
-      usernamePlaceholder="admin"
-      defaultUsername="admin"
-      defaultPassword="admin"
+      usernamePlaceholder="Enter your username"
       onSubmit={async (username, password) => {
         await login(username, password);
         const tokens = loadTokens();

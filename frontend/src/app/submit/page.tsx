@@ -103,6 +103,11 @@ export default function SubmitPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={grant.status} />
+                  {grant.on_chain_grant_id == null ? (
+                    <span className="text-[10px] text-crucible-red uppercase tracking-widest">
+                      Not on-chain
+                    </span>
+                  ) : null}
                   <Link
                     href={`/verification/${grant.id}`}
                     className="btn btn-primary btn-sm"

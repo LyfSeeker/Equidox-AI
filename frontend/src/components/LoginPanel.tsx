@@ -14,7 +14,7 @@ type LoginPanelProps = {
 
 export default function LoginPanel({
   onSubmit,
-  usernamePlaceholder = "demo",
+  usernamePlaceholder = "Enter your username",
   footerHint,
   defaultUsername = "",
   defaultPassword = "",
@@ -88,7 +88,7 @@ export default function LoginPanel({
               onChange={(e) => setPassword(e.target.value)}
               required
               className="field-input"
-              placeholder="••••"
+              placeholder="Enter your password"
             />
           </label>
 

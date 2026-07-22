@@ -29,7 +29,7 @@ export default function LoginClient() {
 
   return (
     <LoginPanel
-      usernamePlaceholder="demo"
+      usernamePlaceholder="Enter your username"
       onSubmit={async (username, password) => {
         await login(username, password);
         const tokens = loadTokens();

@@ -42,7 +42,7 @@ const SIGNALS = [
   "On-chain reputation",
   "Grant reviews",
   "Transparent funding",
-  "Testnet live",
+  "Mainnet live",
   "Ship · Verify · Get paid",
   "No blind grants",
   "Evidence before escrow",
@@ -121,8 +121,8 @@ const FLOW = {
 
 const FAQ = [
   {
-    q: "Do I need mainnet funds to try Equidox?",
-    a: "No. Equidox runs on Stellar Testnet. Fund your Freighter wallet with Friendbot, then create grants, deliver milestones, and run the full verify → approve → release loop.",
+    q: "Do I need Mainnet funds to use Equidox?",
+    a: "Yes. Equidox runs on Stellar Mainnet. Fund your Freighter wallet with real XLM, then create grants, deliver milestones, and run the full verify → approve → release loop.",
   },
   {
     q: "What does the AI actually review?",
@@ -644,13 +644,13 @@ export default function Home() {
       <section className={styles.finalCta}>
         <div className={styles.ctaGrid} />
         <div data-reveal>
-          <p className={styles.overline}>Testnet is live</p>
+          <p className={styles.overline}>Mainnet is live</p>
           <h2>
             Ready to let milestones pay,{" "}
             <span>safely</span>?
           </h2>
           <p>
-            Testnet is live. Connect Freighter, deliver or review a milestone,
+            Mainnet is live. Connect Freighter, deliver or review a milestone,
             and watch escrow move on-chain.
           </p>
           <div className={styles.heroActions}>

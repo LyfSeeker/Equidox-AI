@@ -48,6 +48,18 @@ router.post("/", async (req, res, next) => {
       status,
     } = req.body;
 
+    if (onChainGrantId == null || onChainGrantId === "") {
+      return res.status(400).json({
+        error:
+          "onChainGrantId is required — refuse to save grants that did not confirm on-chain",
+      });
+    }
+    if (!txHash) {
+      return res.status(400).json({
+        error: "txHash is required for grant creation",
+      });
+    }
+
     const result = await query(
       `INSERT INTO grants
         (provider_address, builder_address, reviewer_address, title, description,
@@ -62,25 +74,23 @@ router.post("/", async (req, res, next) => {
         description,
         totalBudgetStroops,
         metadataHash,
-        onChainGrantId ?? null,
-        txHash ?? null,
+        onChainGrantId,
+        txHash,
         status || "active",
       ]
     );
 
-    if (onChainGrantId != null && txHash) {
-      await indexEvent(
-        "GrantCreated",
-        {
-          grant_id: onChainGrantId,
-          provider: providerAddress,
-          builder: builderAddress,
-          reviewer: reviewerAddress,
-          total_budget: totalBudgetStroops,
-        },
-        txHash
-      );
-    }
+    await indexEvent(
+      "GrantCreated",
+      {
+        grant_id: onChainGrantId,
+        provider: providerAddress,
+        builder: builderAddress,
+        reviewer: reviewerAddress,
+        total_budget: totalBudgetStroops,
+      },
+      txHash
+    );
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -128,7 +138,18 @@ router.patch("/:id", async (req, res, next) => {
 
 router.get("/", async (req, res, next) => {
   try {
-    const result = await query(`SELECT * FROM grants ORDER BY created_at DESC`);
+    const includeFailed = String(req.query.includeFailed || "") === "1";
+    const includeIncomplete =
+      String(req.query.includeIncomplete || "") === "1";
+    let sql = `SELECT * FROM grants WHERE status IS DISTINCT FROM 'failed'`;
+    if (!includeIncomplete) {
+      sql += ` AND on_chain_grant_id IS NOT NULL`;
+    }
+    if (includeFailed) {
+      sql = `SELECT * FROM grants WHERE 1=1`;
+    }
+    sql += ` ORDER BY created_at DESC`;
+    const result = await query(sql);
     res.json(result.rows);
   } catch (err) {
     console.warn("list grants failed:", err.message);

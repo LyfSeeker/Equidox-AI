@@ -19,10 +19,19 @@ async function pollOnce() {
   try {
     const latest = await getLatestLedger();
     let start = Number((await getIndexerCursor()) || 0);
-    if (!start || start < 1) {
-      // Start a short window behind tip to avoid huge historical scans
+    const network = process.env.STELLAR_NETWORK || "mainnet";
+    const networkKey = "soroban_network";
+    const storedNetwork = await getIndexerCursor(networkKey);
+
+    // Reset cursor when network changes or lag is too large (e.g. Testnet → Mainnet).
+    const lag = start > 0 ? latest - start : Number.POSITIVE_INFINITY;
+    if (storedNetwork !== network || !start || start < 1 || lag > 2_000) {
       start = Math.max(1, latest - 200);
       await setIndexerCursor(start);
+      await setIndexerCursor(network, networkKey);
+      console.log(
+        `Indexer: cursor reset to ${start} on ${network} (tip ${latest})`
+      );
     }
 
     if (start >= latest) {
@@ -39,6 +48,15 @@ async function pollOnce() {
 
     for (const ev of events) {
       const parsed = parseRpcEvent(ev);
+      if (
+        !parsed.eventName ||
+        parsed.eventName === "[object Object]" ||
+        parsed.eventName === "[objectObject]" ||
+        parsed.eventName === "Unknown" ||
+        /^\[object/i.test(String(parsed.eventName))
+      ) {
+        continue;
+      }
       await indexEvent(
         parsed.eventName,
         parsed.payload,
