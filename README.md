@@ -1,10 +1,10 @@
 # AI-Powered Grant Verification on Stellar
 
-Equidox AI helps grant providers verify project milestones using AI before releasing funds through Stellar smart contracts. Builders submit GitHub repositories and documentation, AI analyzes the evidence, and reviewers make faster, evidence-based funding decisions.
+Equidox AI helps grant providers verify project milestones using AI before releasing funds through Stellar smart contracts. Builders submit GitHub repositories and documentation, AI analyzes the evidence, and reviewers make faster, evidence-based funding decisions and it is live on Stellar Mainnet
 
 🚀 **Live Demo:** [https://equidox.site](https://equidox.site)
 
-Twitter : https://x.com/EquidoxAi
+X (Twitter) : https://x.com/EquidoxAi
 
 ### 🚨 For Trying Out
 
