@@ -1,4 +1,4 @@
-#AI-Powered Grant Verification on Stellar
+# AI-Powered Grant Verification on Stellar
 
 Equidox AI helps grant providers verify project milestones using AI before releasing funds through Stellar smart contracts. Builders submit GitHub repositories and documentation, AI analyzes the evidence, and reviewers make faster, evidence-based funding decisions.
 
