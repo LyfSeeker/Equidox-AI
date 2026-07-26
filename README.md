@@ -1,6 +1,6 @@
-# Equidox AI
+#AI-Powered Grant Verification on Stellar
 
-AI-powered milestone verification and grant escrow on **Stellar Mainnet** (Soroban). Admins fund grants; builders submit evidence; Equidox AI scores delivery; approved milestones release XLM and update an on-chain Builder Passport.
+Equidox AI helps grant providers verify project milestones using AI before releasing funds through Stellar smart contracts. Builders submit GitHub repositories and documentation, AI analyzes the evidence, and reviewers make faster, evidence-based funding decisions.
 
 🚀 **Live Demo:** [https://equidox.site](https://equidox.site)
 
